@@ -1,0 +1,17 @@
+appdirs==1.4.3
+coverage==4.2
+funcsigs==1.0.2
+mock==2.0.0
+packaging==16.8
+pbr==3.0.1
+pluggy==0.3.1
+py==1.4.33
+pycurl==7.43.0
+pyparsing==2.2.0
+pytest==3.0.3
+pytest-cov==2.3.1
+requests==2.11.1
+six==1.10.0
+tox==2.3.1
+tuspy==0.1a2
+virtualenv==15.1.0
