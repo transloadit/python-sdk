@@ -102,3 +102,6 @@ ENV/
 
 # Code editor files
 .vscode/
+
+# osx
+.DS_Store
