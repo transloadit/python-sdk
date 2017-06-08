@@ -1,6 +1,17 @@
 
 
 class Response(object):
+    """
+    Transloadit http Response Object
+
+    :Attributes:
+        - data (dict):
+            Dictionary representation of the returned JSON data.
+        - status_code (int):
+            HTTP response status code
+        - headers (dict):
+            Dictionary represetation of the headers returned from the server.
+    """
     def __init__(self, response):
         self._response = response
         self.data = self._response.json()
@@ -14,7 +25,11 @@ class Response(object):
         return self._response.headers
 
 
-def as_response(fn):
-    def wrapper(*args, **kwargs):
-        return Response(fn(*args, **kwargs))
-    return wrapper
+def as_response(func):
+    """
+    Decorator function that converts the output of a function into an instace
+    of the <transloadit.response.Response> class.
+    """
+    def _wrapper(*args, **kwargs):
+        return Response(func(*args, **kwargs))
+    return _wrapper

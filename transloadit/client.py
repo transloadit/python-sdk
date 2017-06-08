@@ -4,6 +4,26 @@ from . import template
 
 
 class Transloadit(object):
+    """
+    This class serves as a client interface to the Transloadit API.
+
+    :Attributes:
+        - key (str): Transloadit auth key.
+        - secret (str): Transloadit aut secret.
+        - host (Optional[str]): Host url of the Transloadit API.
+        - duration (int): How long in seconds for which a Transloadit should be valid.
+        - request (transloadit.request.Request): An instance of the Transloadit HTTP Request object.
+
+    :Constructor Args:
+        - key (str): Transloadit auth key.
+        - secret (str): Transloadit aut secret.
+        - host (Optional[str]):
+            Host url of the Transloadit API. Defaults to 'https://api2.transloadit.com'
+            if not specified.
+        - duration (Optional[int]):
+            How long in seconds for which a Transloadit should be valid. Defaults to 300
+            if not specified.
+    """
     def __init__(self, key, secret, host='https://api2.transloadit.com', duration=300):
         self.key = key
         self.secret = secret

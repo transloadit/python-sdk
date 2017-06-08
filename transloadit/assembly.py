@@ -1,4 +1,3 @@
-import copy
 import os
 
 from tusclient import client as tus
@@ -7,10 +6,25 @@ from . import optionbuilder
 
 
 class Assembly(optionbuilder.OptionBuilder):
-    def __init__(self, transloadit, options=None):
+    """
+    Object representation of a new Assembly to be created.
+
+    :Attributes:
+        - transloadit (<translaodit.client.Transloadit>):
+            An instance of the Transloadit class.
+        - files (dict):
+            storage of files to be uploaded. Each file is stored with a key corresponding
+            to its field name when it is being uploaded.
+
+    :Constructor Args:
+        - transloadit (<translaodit.client.Transloadit>)
+        - files (Optional[dict])
+        - options (Optional[dict])
+    """
+    def __init__(self, transloadit, files=None, options=None):
         super(Assembly, self).__init__(options)
         self.transloadit = transloadit
-        self.files = {}
+        self.files = files or {}
 
     def add_file(self, file_stream, field_name=None):
         """
@@ -45,32 +59,37 @@ class Assembly(optionbuilder.OptionBuilder):
         """
         self.files.pop(field_name)
 
-    def _do_tus_upload(self, assembly_url, tus_url):
+    def _do_tus_upload(self, assembly_url, tus_url, retries):
         tus_client = tus.TusClient(tus_url)
         metadata = {'assembly_url': assembly_url}
         for key in self.files:
             metadata['fieldname'] = key
             metadata['filename'] = os.path.basename(self.files[key].name)
-            tus_client.uploader(
-                file_stream=self.files[key], metadata=metadata).upload()
+            tus_client.uploader(file_stream=self.files[key],
+                                metadata=metadata,
+                                retries=retries).upload()
 
-    def save(self, resumable=True, wait=False):
+    def save(self, wait=False, resumable=True, retries=3):
         """
         Save/Submit the assembly for processing.
 
         :Args:
-            - resumable (Optional[bool]): A flag indicating if the upload should be resumable.
-                This is good for cases of network failures. Defaults to True if not specified.
             - wait (Optional[bool]): If set to True, the method will wait till the assembly
                 processing is complete before returning a response.
+            - resumable (Optional[bool]): A flag indicating if the upload should be resumable.
+                This is good for cases of network failures. Defaults to True if not specified.
+            - retries (Optional[int]): In the event of an upload failure, this specifies how many
+                more times the upload should be retried before crying for help. This option is only
+                available if 'resumable' is set to 'True'. Defaults to 3 if not specified.
         """
         data = self.get_options()
         if resumable:
             extra_data = {'tus_num_expected_upload_files': len(self.files)}
             response = self.transloadit.request.post(
                 '/assemblies', extra_data=extra_data, data=data)
-            self._do_tus_upload(response.data.get(
-                'assembly_ssl_url'), response.data.get('tus_url'))
+            self._do_tus_upload(response.data.get('assembly_ssl_url'),
+                                response.data.get('tus_url'),
+                                retries)
         else:
             response = self.transloadit.request.post(
                 '/assemblies', data=data, files=self.files)
