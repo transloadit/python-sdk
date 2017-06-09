@@ -27,4 +27,4 @@ class Template(optionbuilder.OptionBuilder):
         """
         data = self.get_options()
         data.update({'name': self.name})
-        return self.transloadit.request.post('/assemblies', data=data)
+        return self.transloadit.request.post('/templates', data=data)

@@ -9,8 +9,8 @@ class Transloadit(object):
 
     :Attributes:
         - key (str): Transloadit auth key.
-        - secret (str): Transloadit aut secret.
-        - host (Optional[str]): Host url of the Transloadit API.
+        - secrete (str): Transloadit auth secrete.
+        - host (Optional[str]): Host URL of the Transloadit API.
         - duration (int): How long in seconds for which a Transloadit should be valid.
         - request (transloadit.request.Request): An instance of the Transloadit HTTP Request object.
 
