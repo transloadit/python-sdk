@@ -5,6 +5,7 @@ import copy
 from datetime import datetime, timedelta
 
 import requests
+from six import b
 
 from .response import as_response
 
@@ -84,7 +85,9 @@ class Request(object):
                 'signature': self._sign_data(json_data)}
 
     def _sign_data(self, message):
-        return hmac.new(self.transloadit.secret, message.encode('utf-8'), hashlib.sha1).hexdigest()
+        return hmac.new(b(self.transloadit.secret),
+                        message.encode('utf-8'),
+                        hashlib.sha1).hexdigest()
 
     def _get_full_url(self, url):
         if url.startswith('http://') or url.startswith('https://'):
