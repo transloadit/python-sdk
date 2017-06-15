@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/ifedapoolarewaju/transloadit-python-sdk.svg?branch=master)](https://travis-ci.org/ifedapoolarewaju/transloadit-python-sdk)
+
 # transloadit-python-sdk
 Python integration for Transloadit
 

@@ -73,8 +73,7 @@ class Request(object):
         return requests.delete(self._get_full_url(path), data=data, headers=self.HEADERS)
 
     def _to_payload(self, data):
-        data = {} if data is None else data
-        data = copy.deepcopy(data)
+        data = copy.deepcopy(data or {})
         expiry = timedelta(seconds=self.transloadit.duration) + datetime.utcnow()
         data['auth'] = {
             'key': self.transloadit.key,
