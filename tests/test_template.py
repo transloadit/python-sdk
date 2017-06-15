@@ -1,9 +1,9 @@
 import unittest
 
 import requests_mock
-from six.moves.urllib import parse
+from six.moves import urllib
 
-from .helper import request_body_matcher
+from . import request_body_matcher
 from transloadit.client import Transloadit
 
 
@@ -17,7 +17,7 @@ class TemplateTest(unittest.TestCase):
         url = '{}/templates'.format(self.transloadit.host)
         sub_body = '"robot": "/image/resize"'
         mock.post(url, text='{"ok":"TEMPLATE_CREATED","template_name":"foo"}',
-                  additional_matcher=request_body_matcher(parse.quote_plus(sub_body)))
+                  additional_matcher=request_body_matcher(urllib.parse.quote_plus(sub_body)))
 
         self.template.add_step('resize', '/image/resize', {'width': 70, 'height': 70})
         template = self.template.save()

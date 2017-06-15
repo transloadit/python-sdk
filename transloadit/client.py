@@ -63,8 +63,8 @@ class Transloadit(object):
     def update_template(self, template_id, data):
         return self.request.put('/templates/{}'.format(template_id), data=data)
 
-    def delete_tempalte(self, template_id):
+    def delete_template(self, template_id):
         return self.request.delete('/templates/{}'.format(template_id))
 
     def get_bill(self, month, year, params=None):
-        return self.request.get('/bill/{}-{}'.format(year, month), params=params)
+        return self.request.get('/bill/{}-{:02d}'.format(year, month), params=params)

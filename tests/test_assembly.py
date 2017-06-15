@@ -2,7 +2,7 @@ import unittest
 
 import requests_mock
 
-from .helper import request_body_matcher
+from . import request_body_matcher
 from transloadit.client import Transloadit
 
 
