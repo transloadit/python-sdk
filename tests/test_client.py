@@ -7,7 +7,7 @@ from . import request_body_matcher
 from transloadit.client import Transloadit
 
 
-class AssemblyTest(unittest.TestCase):
+class ClientTest(unittest.TestCase):
     def setUp(self):
         self.transloadit = Transloadit('key', 'secret')
 
