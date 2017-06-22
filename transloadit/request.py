@@ -89,7 +89,7 @@ class Request(object):
                         hashlib.sha1).hexdigest()
 
     def _get_full_url(self, url):
-        if url.startswith('http://') or url.startswith('https://'):
+        if url.startswith(('http://', 'https://')):
             return url
         else:
-            return self.transloadit.host + url
+            return self.transloadit.service + url

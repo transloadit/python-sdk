@@ -35,7 +35,7 @@ class AssemblyTest(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_save(self, mock):
-        url = '{}/assemblies'.format(self.transloadit.host)
+        url = '{}/assemblies'.format(self.transloadit.service)
         mock.post(url, text=self.json_response,
                   additional_matcher=request_body_matcher(open('LICENSE').read()))
 
@@ -46,7 +46,7 @@ class AssemblyTest(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_save_resumable(self, mock):
-        url = '{}/assemblies'.format(self.transloadit.host)
+        url = '{}/assemblies'.format(self.transloadit.service)
         mock.post(url, text=self.json_response,
                   additional_matcher=request_body_matcher('tus_num_expected_upload_files=0'))
 
