@@ -27,7 +27,7 @@ class Request(object):
     @as_response
     def get(self, path, params=None):
         """
-        Makes HTTP GET request.
+        Makes a HTTP GET request.
 
         :Args:
             - path (str): Url path to which the request should be made.
@@ -39,7 +39,7 @@ class Request(object):
     @as_response
     def post(self, path, data=None, extra_data=None, files=None):
         """
-        Makes HTTP POST request.
+        Makes a HTTP POST request.
 
         :Args:
             - path (str): Url path to which the request should be made.
@@ -53,7 +53,7 @@ class Request(object):
     @as_response
     def put(self, path, data=None):
         """
-        Makes HTTP PUT request.
+        Makes a HTTP PUT request.
 
         :Args:
             - path (str): Url path to which the request should be made.
@@ -64,7 +64,7 @@ class Request(object):
     @as_response
     def delete(self, path, data=None):
         """
-        Makes HTTP DELETE request.
+        Makes a HTTP DELETE request.
 
         :Args:
             - path (str): Url path to which the request should be made.

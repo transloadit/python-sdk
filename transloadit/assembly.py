@@ -11,14 +11,14 @@ class Assembly(optionbuilder.OptionBuilder):
     Object representation of a new Assembly to be created.
 
     :Attributes:
-        - transloadit (<translaodit.client.Transloadit>):
+        - transloadit (<transloadit.client.Transloadit>):
             An instance of the Transloadit class.
         - files (dict):
             storage of files to be uploaded. Each file is stored with a key corresponding
             to its field name when it is being uploaded.
 
     :Constructor Args:
-        - transloadit (<translaodit.client.Transloadit>)
+        - transloadit (<transloadit.client.Transloadit>)
         - files (Optional[dict])
         - options (Optional[dict])
     """
