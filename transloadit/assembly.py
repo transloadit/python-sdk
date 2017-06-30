@@ -70,7 +70,7 @@ class Assembly(optionbuilder.OptionBuilder):
                                 metadata=metadata,
                                 retries=retries).upload()
 
-    def save(self, wait=False, resumable=True, retries=3):
+    def create(self, wait=False, resumable=True, retries=3):
         """
         Save/Submit the assembly for processing.
 
@@ -103,7 +103,7 @@ class Assembly(optionbuilder.OptionBuilder):
         if self._rate_limit_reached(response) and retries:
             # wait till rate limit is expired
             sleep(response.data.get('info', {}).get('retryIn', 0))
-            self.save(wait, resumable, retries - 1)
+            self.create(wait, resumable, retries - 1)
 
         return response
 

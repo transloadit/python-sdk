@@ -20,6 +20,6 @@ class TemplateTest(unittest.TestCase):
                   additional_matcher=request_body_matcher(urllib.parse.quote_plus(sub_body)))
 
         self.template.add_step('resize', '/image/resize', {'width': 70, 'height': 70})
-        template = self.template.save()
+        template = self.template.create()
         self.assertEqual(template.data['ok'], "TEMPLATE_CREATED")
         self.assertEqual(template.data['template_name'], "foo")
