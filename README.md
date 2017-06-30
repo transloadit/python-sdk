@@ -8,7 +8,7 @@ Python integration for Transloadit
 ```python
 from transloadit import client
 
-tl = client.Transloadit('KEY', 'SECRET')
+tl = client.Transloadit('TRANSLOADIT_KEY', 'TRANSLOADIT_SECRET')
 assembly = tl.new_assembly()
 assembly.add_file(open('lol_cat.jpg', 'rb'))
 assembly.add_step('resize', '/image/resize', {'width': 70, 'height': 70})

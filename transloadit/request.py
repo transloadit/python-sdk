@@ -76,7 +76,7 @@ class Request(object):
         data = copy.deepcopy(data or {})
         expiry = timedelta(seconds=self.transloadit.duration) + datetime.utcnow()
         data['auth'] = {
-            'key': self.transloadit.key,
+            'key': self.transloadit.auth_key,
             'expires': expiry.strftime("%Y/%m/%d %H:%M:%S+00:00")
         }
         json_data = json.dumps(data)
@@ -84,7 +84,7 @@ class Request(object):
                 'signature': self._sign_data(json_data)}
 
     def _sign_data(self, message):
-        return hmac.new(b(self.transloadit.secret),
+        return hmac.new(b(self.transloadit.auth_secret),
                         message.encode('utf-8'),
                         hashlib.sha1).hexdigest()
 

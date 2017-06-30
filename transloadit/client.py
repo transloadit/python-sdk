@@ -8,15 +8,15 @@ class Transloadit(object):
     This class serves as a client interface to the Transloadit API.
 
     :Attributes:
-        - key (str): Transloadit auth key.
-        - secret (str): Transloadit auth secret.
+        - auth_key (str): Transloadit auth key.
+        - auth_secret (str): Transloadit auth secret.
         - service (Optional[str]): URL of the Transloadit API.
         - duration (int): How long in seconds for which a Transloadit should be valid.
         - request (transloadit.request.Request): An instance of the Transloadit HTTP Request object.
 
     :Constructor Args:
-        - key (str): Transloadit auth key.
-        - secret (str): Transloadit aut secret.
+        - auth_key (str): Transloadit auth key.
+        - auth_secret (str): Transloadit aut secret.
         - service (Optional[str]):
             Url of the Transloadit API. Defaults to 'https://api2.transloadit.com'
             if not specified.
@@ -24,13 +24,13 @@ class Transloadit(object):
             How long in seconds for which a Transloadit request should be valid. Defaults to 300
             if not specified.
     """
-    def __init__(self, key, secret, service='https://api2.transloadit.com', duration=300):
+    def __init__(self, auth_key, auth_secret, service='https://api2.transloadit.com', duration=300):
         if not service.startswith(('http://', 'https://')):
             service = 'https://' + service
 
         self.service = service
-        self.key = key
-        self.secret = secret
+        self.auth_key = auth_key
+        self.auth_secret = auth_secret
         self.duration = duration
         self.request = request.Request(self)
 
