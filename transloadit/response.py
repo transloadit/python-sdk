@@ -10,7 +10,7 @@ class Response(object):
         - status_code (int):
             HTTP response status code
         - headers (dict):
-            Dictionary represetation of the headers returned from the server.
+            Dictionary representation of the headers returned from the server.
     """
     def __init__(self, response):
         self._response = response
@@ -27,7 +27,7 @@ class Response(object):
 
 def as_response(func):
     """
-    Decorator function that converts the output of a function into an instace
+    Decorator function that converts the output of a function into an instance
     of the <transloadit.response.Response> class.
     """
     def _wrapper(*args, **kwargs):

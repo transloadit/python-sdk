@@ -14,7 +14,7 @@ class ClientTest(unittest.TestCase):
     @requests_mock.Mocker()
     def test_get_assembly(self, mock):
         id_ = 'abcdef12345'
-        url = '{}/assemblies/{}'.format(self.transloadit.host, id_)
+        url = '{}/assemblies/{}'.format(self.transloadit.service, id_)
         mock.get(url, text='{"ok": "ASSEMBLY_COMPLETED", "assembly_id": "abcdef12345"}')
 
         response = self.transloadit.get_assembly(assembly_id=id_)
@@ -23,7 +23,7 @@ class ClientTest(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_list_assemblies(self, mock):
-        url = '{}/assemblies'.format(self.transloadit.host)
+        url = '{}/assemblies'.format(self.transloadit.service)
         mock.get(url, text='{"items":[],"count":0}')
 
         response = self.transloadit.list_assemblies()
@@ -33,7 +33,7 @@ class ClientTest(unittest.TestCase):
     @requests_mock.Mocker()
     def test_cancel_assembly(self, mock):
         id_ = 'abcdef12345'
-        url = '{}/assemblies/{}'.format(self.transloadit.host, id_)
+        url = '{}/assemblies/{}'.format(self.transloadit.service, id_)
         mock.delete(url, text='{"ok": "ASSEMBLY_CANCELED", "assembly_id": "abcdef12345"}')
 
         response = self.transloadit.cancel_assembly(id_)
@@ -43,7 +43,7 @@ class ClientTest(unittest.TestCase):
     @requests_mock.Mocker()
     def test_get_template(self, mock):
         id_ = 'abcdef12345'
-        url = '{}/templates/{}'.format(self.transloadit.host, id_)
+        url = '{}/templates/{}'.format(self.transloadit.service, id_)
         mock.get(url, text='{"ok": "TEMPLATE_FOUND", "template_id": "abcdef12345"}')
 
         response = self.transloadit.get_template(id_)
@@ -52,7 +52,7 @@ class ClientTest(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_list_templates(self, mock):
-        url = '{}/templates'.format(self.transloadit.host)
+        url = '{}/templates'.format(self.transloadit.service)
         mock.get(url, text='{"items":[],"count":0}')
 
         response = self.transloadit.list_templates()
@@ -62,7 +62,7 @@ class ClientTest(unittest.TestCase):
     @requests_mock.Mocker()
     def test_update_template(self, mock):
         id_ = 'abcdef12345'
-        url = '{}/templates/{}'.format(self.transloadit.host, id_)
+        url = '{}/templates/{}'.format(self.transloadit.service, id_)
         sub_body = '"name": "foo_bar"'
         mock.put(url, text='{"ok": "TEMPLATE_UPDATED", "template_id": "abcdef12345"}',
                  additional_matcher=request_body_matcher(urllib.parse.quote_plus(sub_body)))
@@ -74,7 +74,7 @@ class ClientTest(unittest.TestCase):
     @requests_mock.Mocker()
     def test_delete_tempalte(self, mock):
         id_ = 'abcdef12345'
-        url = '{}/templates/{}'.format(self.transloadit.host, id_)
+        url = '{}/templates/{}'.format(self.transloadit.service, id_)
         mock.delete(url, text='{"ok": "TEMPLATE_DELETED"}')
 
         response = self.transloadit.delete_template(id_)

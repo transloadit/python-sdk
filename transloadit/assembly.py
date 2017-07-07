@@ -1,4 +1,5 @@
 import os
+from time import sleep
 
 from tusclient import client as tus
 
@@ -10,14 +11,14 @@ class Assembly(optionbuilder.OptionBuilder):
     Object representation of a new Assembly to be created.
 
     :Attributes:
-        - transloadit (<translaodit.client.Transloadit>):
+        - transloadit (<transloadit.client.Transloadit>):
             An instance of the Transloadit class.
         - files (dict):
             storage of files to be uploaded. Each file is stored with a key corresponding
             to its field name when it is being uploaded.
 
     :Constructor Args:
-        - transloadit (<translaodit.client.Transloadit>)
+        - transloadit (<transloadit.client.Transloadit>)
         - files (Optional[dict])
         - options (Optional[dict])
     """
@@ -69,7 +70,7 @@ class Assembly(optionbuilder.OptionBuilder):
                                 metadata=metadata,
                                 retries=retries).upload()
 
-    def save(self, wait=False, resumable=True, retries=3):
+    def create(self, wait=False, resumable=True, retries=3):
         """
         Save/Submit the assembly for processing.
 
@@ -98,6 +99,12 @@ class Assembly(optionbuilder.OptionBuilder):
             while not self._assembly_finished(response):
                 response = self.transloadit.get_assembly(
                     url=response.data.get('assembly_ssl_url'))
+
+        if self._rate_limit_reached(response) and retries:
+            # wait till rate limit is expired
+            sleep(response.data.get('info', {}).get('retryIn', 0))
+            self.create(wait, resumable, retries - 1)
+
         return response
 
     def _assembly_finished(self, response):
@@ -105,4 +112,8 @@ class Assembly(optionbuilder.OptionBuilder):
         is_aborted = status == 'REQUEST_ABORTED'
         is_canceled = status == 'ASSEMBLY_CANCELED'
         is_completed = status == 'ASSEMBLY_COMPLETED'
-        return is_aborted or is_canceled or is_completed
+        is_failed = response.data.get('error') is not None
+        return is_aborted or is_canceled or is_completed or is_failed
+
+    def _rate_limit_reached(self, response):
+        return response.data.get('error') == 'RATE_LIMIT_REACHED'

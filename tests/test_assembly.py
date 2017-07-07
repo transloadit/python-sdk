@@ -35,21 +35,21 @@ class AssemblyTest(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_save(self, mock):
-        url = '{}/assemblies'.format(self.transloadit.host)
+        url = '{}/assemblies'.format(self.transloadit.service)
         mock.post(url, text=self.json_response,
                   additional_matcher=request_body_matcher(open('LICENSE').read()))
 
         self.assembly.add_file(open('LICENSE'))
-        assembly = self.assembly.save(resumable=False)
+        assembly = self.assembly.create(resumable=False)
         self.assertEqual(assembly.data['ok'], "ASSEMBLY_COMPLETED")
         self.assertEqual(assembly.data['assembly_id'], "abcdef45673")
 
     @requests_mock.Mocker()
     def test_save_resumable(self, mock):
-        url = '{}/assemblies'.format(self.transloadit.host)
+        url = '{}/assemblies'.format(self.transloadit.service)
         mock.post(url, text=self.json_response,
                   additional_matcher=request_body_matcher('tus_num_expected_upload_files=0'))
 
-        assembly = self.assembly.save()
+        assembly = self.assembly.create()
         self.assertEqual(assembly.data['ok'], "ASSEMBLY_COMPLETED")
         self.assertEqual(assembly.data['assembly_id'], "abcdef45673")

@@ -21,7 +21,7 @@ class Template(optionbuilder.OptionBuilder):
         self.transloadit = transloadit
         self.name = name
 
-    def save(self):
+    def create(self):
         """
         Save/Submit the template to the Transloadit server.
         """

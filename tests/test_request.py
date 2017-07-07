@@ -15,7 +15,7 @@ class RequestTest(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_get(self, mock):
-        url = '{}/foo'.format(self.transloadit.host)
+        url = '{}/foo'.format(self.transloadit.service)
         mock.get(url, text='{"ok": "it works"}')
 
         response = self.request.get('/foo')
@@ -23,7 +23,7 @@ class RequestTest(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_post(self, mock):
-        url = '{}/foo'.format(self.transloadit.host)
+        url = '{}/foo'.format(self.transloadit.service)
         sub_body = urllib.parse.quote_plus('"foo": "bar"')
         mock.post(url, text='{"ok": "it works"}',
                   additional_matcher=request_body_matcher(sub_body))
@@ -33,7 +33,7 @@ class RequestTest(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_put(self, mock):
-        url = '{}/foo'.format(self.transloadit.host)
+        url = '{}/foo'.format(self.transloadit.service)
         sub_body = urllib.parse.quote_plus('"foo": "bar"')
         mock.put(url, text='{"ok": "it works"}',
                  additional_matcher=request_body_matcher(sub_body))
@@ -43,7 +43,7 @@ class RequestTest(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_delete(self, mock):
-        url = '{}/foo'.format(self.transloadit.host)
+        url = '{}/foo'.format(self.transloadit.service)
         sub_body = urllib.parse.quote_plus('"foo": "bar"')
         mock.delete(url, text='{"ok": "it works"}',
                     additional_matcher=request_body_matcher(sub_body))
