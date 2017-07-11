@@ -14,13 +14,16 @@ class Assembly(optionbuilder.OptionBuilder):
         - transloadit (<transloadit.client.Transloadit>):
             An instance of the Transloadit class.
         - files (dict):
-            storage of files to be uploaded. Each file is stored with a key corresponding
+            Storage of files to be uploaded. Each file is stored with a key corresponding
             to its field name when it is being uploaded.
 
     :Constructor Args:
         - transloadit (<transloadit.client.Transloadit>)
-        - files (Optional[dict])
-        - options (Optional[dict])
+        - files (Optional[dict]):
+            Key, value pair of the file's field name and the file stream respectively.
+        - options (Optional[dict]):
+            Params to send along with the assembly. Please see
+            https://transloadit.com/docs/api-docs/#21-create-a-new-assembly for available options.
     """
     def __init__(self, transloadit, files=None, options=None):
         super(Assembly, self).__init__(options)

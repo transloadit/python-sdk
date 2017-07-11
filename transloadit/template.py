@@ -13,8 +13,10 @@ class Template(optionbuilder.OptionBuilder):
 
     :Constructor Args:
         - transloadit (<translaodit.client.Transloadit>)
-        - name (str)
-        - options (Optional[dict])
+        - name (str): The name of the template.
+        - options (Optional[dict]):
+            Params to send along with the template. Please see
+            https://transloadit.com/docs/api-docs/#4-templates for available options.
     """
     def __init__(self, transloadit, name, options=None):
         super(Template, self).__init__(options)

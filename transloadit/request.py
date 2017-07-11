@@ -17,9 +17,12 @@ class Request(object):
     :Attributes:
         - transloadit (<translaodit.client.Transloadit>):
             An instance of the Transloadit class.
+
+    :Constructor Args:
+        - transloadit (<transloadit.client.Transloadit>)
     """
 
-    HEADERS = {'User-Agent': 'Transloadit Java SDK'}
+    HEADERS = {'User-Agent': 'Transloadit Python SDK'}
 
     def __init__(self, transloadit):
         self.transloadit = transloadit
@@ -30,7 +33,10 @@ class Request(object):
         Makes a HTTP GET request.
 
         :Args:
-            - path (str): Url path to which the request should be made.
+            - path (str): URL path to which the request should be made.
+            - params (Optional[dict]): Optional params to send along with the request.
+
+        Return an instance of <transloadit.response.Response>
         """
         return requests.get(self._get_full_url(path),
                             params=self._to_payload(params),
@@ -42,7 +48,14 @@ class Request(object):
         Makes a HTTP POST request.
 
         :Args:
-            - path (str): Url path to which the request should be made.
+            - path (str): URL path to which the request should be made.
+            - data (Optional[dict]): The body of the request. This would be stored under the 'params' field.
+            - extra_data (Optional[dict]): This is also added to the body of the request but not under the
+                'params' field.
+            - files (Optional[dict]): Files to upload with the request. This should be a key, value pair of
+                field name and file stream respectively.
+
+        Return an instance of <transloadit.response.Response>
         """
         data = self._to_payload(data)
         if extra_data:
@@ -56,7 +69,10 @@ class Request(object):
         Makes a HTTP PUT request.
 
         :Args:
-            - path (str): Url path to which the request should be made.
+            - path (str): URL path to which the request should be made.
+            - data (Optional[dict]): The body of the request.
+
+        Return an instance of <transloadit.response.Response>
         """
         data = self._to_payload(data)
         return requests.put(self._get_full_url(path), data=data, headers=self.HEADERS)
@@ -67,7 +83,10 @@ class Request(object):
         Makes a HTTP DELETE request.
 
         :Args:
-            - path (str): Url path to which the request should be made.
+            - path (str): URL path to which the request should be made.
+            - data (Optional[dict]): The body of the request.
+
+        Return an instance of <transloadit.response.Response>
         """
         data = self._to_payload(data)
         return requests.delete(self._get_full_url(path), data=data, headers=self.HEADERS)

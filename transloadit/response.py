@@ -11,6 +11,9 @@ class Response(object):
             HTTP response status code
         - headers (dict):
             Dictionary representation of the headers returned from the server.
+
+    :Constructor Args:
+        - response (<requests.Response>): The bare response object from the requests library.
     """
     def __init__(self, response):
         self._response = response
@@ -18,10 +21,16 @@ class Response(object):
 
     @property
     def status_code(self):
+        """
+        Return the http status code of the request.
+        """
         return self._response.status_code
 
     @property
     def headers(self):
+        """
+        Return the response headers.
+        """
         return self._response.headers
 
 
