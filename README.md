@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/ifedapoolarewaju/transloadit-python-sdk.svg?branch=master)](https://travis-ci.org/transloadit/python-sdk)
+[![Build Status](https://travis-ci.org/transloadit/python-sdk.svg?branch=master)](https://travis-ci.org/transloadit/python-sdk)
 
 # python-sdk
 
