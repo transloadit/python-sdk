@@ -1,3 +1,4 @@
+from six import wraps
 
 
 class Response(object):
@@ -39,6 +40,7 @@ def as_response(func):
     Decorator function that converts the output of a function into an instance
     of the <transloadit.response.Response> class.
     """
+    @wraps(func)
     def _wrapper(*args, **kwargs):
         return Response(func(*args, **kwargs))
     return _wrapper
