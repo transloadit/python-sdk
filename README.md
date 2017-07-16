@@ -33,6 +33,10 @@ print assembly_response.data.get('assembly_id')
 print assembly_response.data['assembly_id']
 ```
 
+## Example
+
+For fully working examples, take a look at [`examples/`](https://github.com/transloadit/python-sdk/tree/master/examples).
+
 ## Documentation
 
 See [url here](https://someurl.url) for full API documentation.
