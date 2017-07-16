@@ -39,4 +39,4 @@ For fully working examples, take a look at [`examples/`](https://github.com/tran
 
 ## Documentation
 
-See [url here](https://someurl.url) for full API documentation.
+See [readthedocs](https://transloadit.readthedocs.io) for full API documentation.
