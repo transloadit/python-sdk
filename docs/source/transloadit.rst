@@ -25,18 +25,18 @@ transloadit.assembly module
     :undoc-members:
     :show-inheritance:
 
-transloadit.optionbuilder module
---------------------------------
+transloadit.template module
+---------------------------
 
-.. automodule:: transloadit.optionbuilder
+.. automodule:: transloadit.template
     :members:
     :undoc-members:
     :show-inheritance:
 
-transloadit.assembly module
----------------------------
+transloadit.optionbuilder module
+--------------------------------
 
-.. automodule:: transloadit.assembly
+.. automodule:: transloadit.optionbuilder
     :members:
     :undoc-members:
     :show-inheritance:
