@@ -13,7 +13,7 @@ This is a **Python** SDK to make it easy to talk to the [Transloadit](https://tr
 ## Install
 
 ```bash
-pip install transloadit
+pip install pytransloadit
 ```
 
 ## Usage

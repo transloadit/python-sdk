@@ -13,7 +13,7 @@ else:
     long_description = open('README.md', encoding='utf-8').read()
 
 setup(
-    name='transloadit',
+    name='pytransloadit',
     version=transloadit.__version__,
     url='http://github.com/transloadit/python-sdk/',
     license='MIT',

@@ -44,7 +44,7 @@ Install
 
 .. code:: bash
 
-    pip install transloadit
+    pip install pytransloadit
 
 Usage
 -----
