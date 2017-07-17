@@ -32,7 +32,7 @@ setup(
         'Intended Audience :: Developers',
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: MIT License',
-        'Operating System :: Independent',
+        'Operating System :: OS Independent',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Internet :: File Transfer Protocol (FTP)',
         'Topic :: Communications :: File Sharing',
