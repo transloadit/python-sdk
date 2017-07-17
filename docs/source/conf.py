@@ -18,7 +18,20 @@
 #
 import os
 import sys
+from unittest.mock import MagicMock
+
 sys.path.insert(0, os.path.abspath('../../'))
+
+# pycurl installation fails on rtd
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+        if name == "_mock_methods":
+            return name._mock_methods
+        else:
+            return Mock()
+
+sys.modules.update({'pycurl': Mock()})
 
 
 # -- General configuration ------------------------------------------------
