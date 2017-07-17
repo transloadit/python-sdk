@@ -31,10 +31,12 @@ setup(
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
         'Development Status :: 3 - Alpha',
-        'License ::I Approved :: MIT License',
+        'License :: OSI Approved :: MIT License',
         'Operating System :: Independent',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Internet :: File Transfer Protocol (FTP)',
         'Topic :: Communications :: File Sharing',
+        'Topic :: Multimedia :: Video :: Conversion',
+        'Topic :: Multimedia :: Sound/Audio :: Conversion'
     ]
 )
