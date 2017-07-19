@@ -1,1 +1,2 @@
+pypandoc==1.4
 Sphinx==1.6.3

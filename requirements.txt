@@ -23,6 +23,7 @@ py==1.4.33
 pycurl==7.43.0
 Pygments==2.2.0
 pylint==1.7.1
+pypandoc==1.4
 pyparsing==2.2.0
 pytest==3.0.3
 pytest-cov==2.3.1
