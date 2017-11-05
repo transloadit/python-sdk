@@ -7,8 +7,11 @@ import transloadit
 
 install_requires = ['requests==2.11.1', 'six==1.10.0', 'tuspy==0.1']
 
-long_description = pypandoc.convert('README.md', 'rst')
-long_description = long_description.replace("\r","")
+try:
+    import pypandoc
+    long_description = pypandoc.convert('README.md', 'rst').replace("\r", "")
+except ImportError:
+    long_description = ''
 
 setup(
     name='pytransloadit',
