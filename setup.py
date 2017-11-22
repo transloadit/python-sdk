@@ -1,5 +1,4 @@
 import sys
-import pypandoc
 from setuptools import setup
 
 import transloadit
