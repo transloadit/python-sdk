@@ -70,6 +70,7 @@ class Assembly(optionbuilder.OptionBuilder):
             metadata['fieldname'] = key
             metadata['filename'] = os.path.basename(self.files[key].name)
             tus_client.uploader(file_stream=self.files[key],
+                                chunk_size=5*1024*1024,
                                 metadata=metadata,
                                 retries=retries).upload()
 
