@@ -4,7 +4,7 @@ from setuptools import setup
 import transloadit
 
 
-install_requires = ['requests==2.11.1', 'six==1.10.0', 'tuspy==0.2.2']
+install_requires = ['requests>=2.11.1,<3', 'six==1.10.0', 'tuspy==0.2.2']
 
 try:
     import pypandoc
