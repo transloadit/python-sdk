@@ -4,7 +4,11 @@ from setuptools import setup
 import transloadit
 
 
-install_requires = ['requests>=2.11.1,<3', 'six>=1.10.0', 'tuspy>=0.2.2']
+install_requires = ['requests>=2.18.4', 'six>=1.11.0', 'tuspy>=0.2.3']
+tests_require = [
+    'requests-mock>=1.3.0', 'mock>=2.0.0', 'coverage>=4.2', 'pytest>=3.0.3',
+    'pytest-cov>=2.3.1'
+]
 
 try:
     import pypandoc
@@ -19,17 +23,20 @@ setup(
     license='MIT',
     author='Ifedapo Olarewaju',
     install_requires=install_requires,
+    tests_require=tests_require,
+    extras_require={
+        'test': tests_require,
+        'dev': ['tox>=2.3.1', 'sphinx-autobuild==0.7.1', 'Sphinx==1.7.1']
+    },
     author_email='ifedapoolarewaju@gmail.com',
-    description="A Python Integration for https://transloadit.com file uploading and encoding service.",
+    description='A Python Integration for https://transloadit.com file uploading and encoding service.',
     long_description=long_description,
     packages=['transloadit'],
     include_package_data=True,
     platforms='any',
     classifiers=[
-        'Programming Language :: Python',
-        'Natural Language :: English',
-        'Environment :: Web Environment',
-        'Intended Audience :: Developers',
+        'Programming Language :: Python', 'Natural Language :: English',
+        'Environment :: Web Environment', 'Intended Audience :: Developers',
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
@@ -38,5 +45,4 @@ setup(
         'Topic :: Communications :: File Sharing',
         'Topic :: Multimedia :: Video :: Conversion',
         'Topic :: Multimedia :: Sound/Audio :: Conversion'
-    ]
-)
+    ])
