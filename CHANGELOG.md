@@ -1,3 +1,8 @@
+### 0.1.10/ 2018-27-08 ###
+
+* Drop the use of requirements.txt for dependencies
+* Update dependency versions
+
 ### 0.1.9/ 2018-12-04 ###
 
 * Loosen request module's version
