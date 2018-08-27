@@ -13,7 +13,7 @@ class AssemblyTest(unittest.TestCase):
         self.json_response = '{"ok": "ASSEMBLY_COMPLETED", "assembly_id": "abcdef45673"}'
 
     def test_add_file(self):
-        with open('LICENSE') as fs, open('README.md') as fs_2, open('requirements.txt') as fs_3:
+        with open('LICENSE') as fs, open('README.md') as fs_2, open('CHANGELOG.md') as fs_3:
             self.assembly.add_file(fs, 'foo_field')
 
             self.assertEqual(self.assembly.files['foo_field'], fs)
