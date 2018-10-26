@@ -16,7 +16,7 @@ class RequestTest(unittest.TestCase):
     @requests_mock.Mocker()
     def test_get(self, mock):
         url = '{}/foo'.format(self.transloadit.service)
-        mock.get(url, text='{"ok": "it works"}')
+        mock.get(url, text='{"ok": "it works"}', request_headers={'Transloadit-Client': 'python-sdk:0.1.10'})
 
         response = self.request.get('/foo')
         self.assertEqual(response.data['ok'], 'it works')
