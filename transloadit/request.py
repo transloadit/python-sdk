@@ -8,6 +8,7 @@ import requests
 from six import b
 
 from .response import as_response
+from . import __version__
 
 
 class Request(object):
@@ -22,7 +23,7 @@ class Request(object):
         - transloadit (<transloadit.client.Transloadit>)
     """
 
-    HEADERS = {'User-Agent': 'Transloadit Python SDK'}
+    HEADERS = {'Transloadit-Client': 'python-sdk:' + __version__}
 
     def __init__(self, transloadit):
         self.transloadit = transloadit
