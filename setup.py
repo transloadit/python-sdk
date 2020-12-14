@@ -12,7 +12,7 @@ tests_require = [
 
 try:
     import pypandoc
-    long_description = pypandoc.convert('README.md', 'rst').replace("\r", "")
+    long_description = pypandoc.convert_file('README.md', 'rst').replace("\r", "")
 except (ImportError, OSError):  # pypandoc or pandoc is not installed
     long_description = ''
 

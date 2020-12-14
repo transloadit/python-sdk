@@ -1,3 +1,8 @@
+### 0.1.12/ 2020-14-12 ###
+
+* Drop the use of requirements.txt for dependencies
+* Update dependency versions
+
 ### 0.1.10/ 2018-27-08 ###
 
 * Drop the use of requirements.txt for dependencies
