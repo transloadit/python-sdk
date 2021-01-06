@@ -6,7 +6,7 @@ import transloadit
 
 install_requires = ['requests>=2.18.4', 'six>=1.11.0', 'tuspy>=0.2.3']
 tests_require = [
-    'requests-mock>=1.3.0', 'mock>=2.0.0', 'coverage>=4.2', 'pytest>=3.0.3',
+    'requests-mock>=1.3.0', 'mock>=2.0.0', 'coverage>=4.2', 'pytest>=4.6',
     'pytest-cov>=2.3.1'
 ]
 
