@@ -1,7 +1,7 @@
 import copy
 
 
-class OptionBuilder(object):
+class OptionBuilder:
     """
     Object representation of a new Assembly to be created.
 
@@ -18,7 +18,7 @@ class OptionBuilder(object):
             https://transloadit.com/docs/api-docs/#21-create-a-new-assembly for available options.
     """
     def __init__(self, options=None):
-        super(OptionBuilder, self).__init__()
+        super().__init__()
         self.options = options or {}
         self.steps = {}
 

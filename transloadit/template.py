@@ -19,7 +19,7 @@ class Template(optionbuilder.OptionBuilder):
             https://transloadit.com/docs/api-docs/#4-templates for available options.
     """
     def __init__(self, transloadit, name, options=None):
-        super(Template, self).__init__(options)
+        super().__init__(options)
         self.transloadit = transloadit
         self.name = name
 

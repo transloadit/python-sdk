@@ -3,7 +3,7 @@ from . import assembly
 from . import template
 
 
-class Transloadit(object):
+class Transloadit:
     """
     This class serves as a client interface to the Transloadit API.
 
@@ -55,7 +55,7 @@ class Transloadit(object):
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else '/assemblies/{}'.format(assembly_id)
+        url = assembly_url if assembly_url else f'/assemblies/{assembly_id}'
         return self.request.get(url)
 
     def list_assemblies(self, params=None):
@@ -85,7 +85,7 @@ class Transloadit(object):
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else '/assemblies/{}'.format(assembly_id)
+        url = assembly_url if assembly_url else f'/assemblies/{assembly_id}'
         return self.request.delete(url)
 
     def get_template(self, template_id):
@@ -97,7 +97,7 @@ class Transloadit(object):
         
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.get('/templates/{}'.format(template_id))
+        return self.request.get(f'/templates/{template_id}')
 
     def list_templates(self, params=None):
         """
@@ -132,7 +132,7 @@ class Transloadit(object):
 
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.put('/templates/{}'.format(template_id), data=data)
+        return self.request.put(f'/templates/{template_id}', data=data)
 
     def delete_template(self, template_id):
         """
@@ -143,7 +143,7 @@ class Transloadit(object):
 
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.delete('/templates/{}'.format(template_id))
+        return self.request.delete(f'/templates/{template_id}')
 
     def get_bill(self, month, year):
         """
@@ -155,4 +155,4 @@ class Transloadit(object):
         
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.get('/bill/{}-{:02d}'.format(year, month))
+        return self.request.get(f'/bill/{year}-{month:02d}')

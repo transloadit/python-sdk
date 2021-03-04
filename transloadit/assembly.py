@@ -26,7 +26,7 @@ class Assembly(optionbuilder.OptionBuilder):
             https://transloadit.com/docs/api-docs/#21-create-a-new-assembly for available options.
     """
     def __init__(self, transloadit, files=None, options=None):
-        super(Assembly, self).__init__(options)
+        super().__init__(options)
         self.transloadit = transloadit
         self.files = files or {}
 
@@ -50,9 +50,9 @@ class Assembly(optionbuilder.OptionBuilder):
             return name
 
         counter = 1
-        while '{}_{}'.format(name, counter) in self.files:
+        while f'{name}_{counter}' in self.files:
             counter += 1
-        return '{}_{}'.format(name, counter)
+        return f'{name}_{counter}'
 
     def remove_file(self, field_name):
         """

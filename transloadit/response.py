@@ -1,7 +1,7 @@
 from six import wraps
 
 
-class Response(object):
+class Response:
     """
     Transloadit http Response Object
 

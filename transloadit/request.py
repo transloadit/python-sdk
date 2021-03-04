@@ -11,7 +11,7 @@ from .response import as_response
 from . import __version__
 
 
-class Request(object):
+class Request:
     """
     Transloadit tailored HTTP Request object.
 
