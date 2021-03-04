@@ -24,9 +24,16 @@ class Transloadit:
             How long in seconds for which a Transloadit request should be valid. Defaults to 300
             if not specified.
     """
-    def __init__(self, auth_key, auth_secret, service='https://api2.transloadit.com', duration=300):
-        if not service.startswith(('http://', 'https://')):
-            service = 'https://' + service
+
+    def __init__(
+        self,
+        auth_key,
+        auth_secret,
+        service="https://api2.transloadit.com",
+        duration=300,
+    ):
+        if not service.startswith(("http://", "https://")):
+            service = "https://" + service
 
         self.service = service
         self.auth_key = auth_key
@@ -49,13 +56,13 @@ class Transloadit:
         :Args:
             - assembly_id (Optional[str])
             - assembly_url (Optional[str])
-        
+
         Return an instance of <transloadit.response.Response>
         """
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else f'/assemblies/{assembly_id}'
+        url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
         return self.request.get(url)
 
     def list_assemblies(self, params=None):
@@ -66,10 +73,10 @@ class Transloadit:
             - options (Optional[dict]):
                 params to send along with the request. Please see
                 https://transloadit.com/docs/api-docs/#25-retrieve-assembly-list for available options.
-        
+
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.get('/assemblies', params=params)
+        return self.request.get("/assemblies", params=params)
 
     def cancel_assembly(self, assembly_id=None, assembly_url=None):
         """
@@ -79,13 +86,13 @@ class Transloadit:
         :Args:
             - assembly_id (Optional[str])
             - assembly_url (Optional[str])
-        
+
         Return an instance of <transloadit.response.Response>
         """
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else f'/assemblies/{assembly_id}'
+        url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
         return self.request.delete(url)
 
     def get_template(self, template_id):
@@ -94,10 +101,10 @@ class Transloadit:
 
         :Args:
             - template_id (str)
-        
+
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.get(f'/templates/{template_id}')
+        return self.request.get(f"/templates/{template_id}")
 
     def list_templates(self, params=None):
         """
@@ -107,10 +114,10 @@ class Transloadit:
             - options (Optional[dict]):
                 params to send along with the request. Please see
                 https://transloadit.com/docs/api-docs/#45-retrieve-template-list for available options.
-        
+
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.get('/templates', params=params)
+        return self.request.get("/templates", params=params)
 
     def new_template(self, name, params=None):
         """
@@ -132,7 +139,7 @@ class Transloadit:
 
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.put(f'/templates/{template_id}', data=data)
+        return self.request.put(f"/templates/{template_id}", data=data)
 
     def delete_template(self, template_id):
         """
@@ -143,7 +150,7 @@ class Transloadit:
 
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.delete(f'/templates/{template_id}')
+        return self.request.delete(f"/templates/{template_id}")
 
     def get_bill(self, month, year):
         """
@@ -152,7 +159,7 @@ class Transloadit:
         :Args:
             - month (int): e.g 1 for January
             - year (int)
-        
+
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.get(f'/bill/{year}-{month:02d}')
+        return self.request.get(f"/bill/{year}-{month:02d}")

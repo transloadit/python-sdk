@@ -25,6 +25,7 @@ class Assembly(optionbuilder.OptionBuilder):
             Params to send along with the assembly. Please see
             https://transloadit.com/docs/api-docs/#21-create-a-new-assembly for available options.
     """
+
     def __init__(self, transloadit, files=None, options=None):
         super().__init__(options)
         self.transloadit = transloadit
@@ -45,14 +46,14 @@ class Assembly(optionbuilder.OptionBuilder):
         self.files[field_name] = file_stream
 
     def _get_field_name(self):
-        name = 'file'
+        name = "file"
         if name not in self.files:
             return name
 
         counter = 1
-        while f'{name}_{counter}' in self.files:
+        while f"{name}_{counter}" in self.files:
             counter += 1
-        return f'{name}_{counter}'
+        return f"{name}_{counter}"
 
     def remove_file(self, field_name):
         """
@@ -65,14 +66,16 @@ class Assembly(optionbuilder.OptionBuilder):
 
     def _do_tus_upload(self, assembly_url, tus_url, retries):
         tus_client = tus.TusClient(tus_url)
-        metadata = {'assembly_url': assembly_url}
+        metadata = {"assembly_url": assembly_url}
         for key in self.files:
-            metadata['fieldname'] = key
-            metadata['filename'] = os.path.basename(self.files[key].name)
-            tus_client.uploader(file_stream=self.files[key],
-                                chunk_size=5*1024*1024,
-                                metadata=metadata,
-                                retries=retries).upload()
+            metadata["fieldname"] = key
+            metadata["filename"] = os.path.basename(self.files[key].name)
+            tus_client.uploader(
+                file_stream=self.files[key],
+                chunk_size=5 * 1024 * 1024,
+                metadata=metadata,
+                retries=retries,
+            ).upload()
 
     def create(self, wait=False, resumable=True, retries=3):
         """
@@ -89,35 +92,40 @@ class Assembly(optionbuilder.OptionBuilder):
         """
         data = self.get_options()
         if resumable:
-            extra_data = {'tus_num_expected_upload_files': len(self.files)}
+            extra_data = {"tus_num_expected_upload_files": len(self.files)}
             response = self.transloadit.request.post(
-                '/assemblies', extra_data=extra_data, data=data)
-            self._do_tus_upload(response.data.get('assembly_ssl_url'),
-                                response.data.get('tus_url'),
-                                retries)
+                "/assemblies", extra_data=extra_data, data=data
+            )
+            self._do_tus_upload(
+                response.data.get("assembly_ssl_url"),
+                response.data.get("tus_url"),
+                retries,
+            )
         else:
             response = self.transloadit.request.post(
-                '/assemblies', data=data, files=self.files)
+                "/assemblies", data=data, files=self.files
+            )
 
         if wait:
             while not self._assembly_finished(response):
                 response = self.transloadit.get_assembly(
-                    assembly_url=response.data.get('assembly_ssl_url'))
+                    assembly_url=response.data.get("assembly_ssl_url")
+                )
 
         if self._rate_limit_reached(response) and retries:
             # wait till rate limit is expired
-            sleep(response.data.get('info', {}).get('retryIn', 0))
+            sleep(response.data.get("info", {}).get("retryIn", 0))
             self.create(wait, resumable, retries - 1)
 
         return response
 
     def _assembly_finished(self, response):
-        status = response.data.get('ok')
-        is_aborted = status == 'REQUEST_ABORTED'
-        is_canceled = status == 'ASSEMBLY_CANCELED'
-        is_completed = status == 'ASSEMBLY_COMPLETED'
-        is_failed = response.data.get('error') is not None
+        status = response.data.get("ok")
+        is_aborted = status == "REQUEST_ABORTED"
+        is_canceled = status == "ASSEMBLY_CANCELED"
+        is_completed = status == "ASSEMBLY_COMPLETED"
+        is_failed = response.data.get("error") is not None
         return is_aborted or is_canceled or is_completed or is_failed
 
     def _rate_limit_reached(self, response):
-        return response.data.get('error') == 'RATE_LIMIT_REACHED'
+        return response.data.get("error") == "RATE_LIMIT_REACHED"
