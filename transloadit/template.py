@@ -18,8 +18,9 @@ class Template(optionbuilder.OptionBuilder):
             Params to send along with the template. Please see
             https://transloadit.com/docs/api-docs/#4-templates for available options.
     """
+
     def __init__(self, transloadit, name, options=None):
-        super(Template, self).__init__(options)
+        super().__init__(options)
         self.transloadit = transloadit
         self.name = name
 
@@ -28,5 +29,5 @@ class Template(optionbuilder.OptionBuilder):
         Save/Submit the template to the Transloadit server.
         """
         data = self.get_options()
-        data.update({'name': self.name})
-        return self.transloadit.request.post('/templates', data=data)
+        data.update({"name": self.name})
+        return self.transloadit.request.post("/templates", data=data)

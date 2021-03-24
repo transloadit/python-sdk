@@ -10,6 +10,8 @@ A **Python** Integration for [Transloadit](https://transloadit.com)'s file uploa
 
 This is a **Python** SDK to make it easy to talk to the [Transloadit](https://transloadit.com) REST API.
 
+Only Python 3.6+ versions are supported.
+
 ## Install
 
 ```bash

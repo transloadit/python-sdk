@@ -1,7 +1,7 @@
 import copy
 
 
-class OptionBuilder(object):
+class OptionBuilder:
     """
     Object representation of a new Assembly to be created.
 
@@ -17,8 +17,9 @@ class OptionBuilder(object):
             params to send along with the assembly. Please see
             https://transloadit.com/docs/api-docs/#21-create-a-new-assembly for available options.
     """
+
     def __init__(self, options=None):
-        super(OptionBuilder, self).__init__()
+        super().__init__()
         self.options = options or {}
         self.steps = {}
 
@@ -31,7 +32,7 @@ class OptionBuilder(object):
             - robot (str): The name of the robot for the step
             - options (dict): The options to apply to the step
         """
-        options['robot'] = robot
+        options["robot"] = robot
         self.steps[name] = options
 
     def remove_step(self, name):
@@ -45,8 +46,8 @@ class OptionBuilder(object):
 
     def get_options(self):
         """
-        Return the Assembly/Template options in Transloadit, ready format. 
+        Return the Assembly/Template options in Transloadit, ready format.
         """
         options = copy.deepcopy(self.options)
-        options['steps'] = self.steps
+        options["steps"] = self.steps
         return options

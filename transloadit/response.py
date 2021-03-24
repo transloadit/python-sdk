@@ -1,7 +1,7 @@
 from six import wraps
 
 
-class Response(object):
+class Response:
     """
     Transloadit http Response Object
 
@@ -16,6 +16,7 @@ class Response(object):
     :Constructor Args:
         - response (<requests.Response>): The bare response object from the requests library.
     """
+
     def __init__(self, response):
         self._response = response
         self.data = self._response.json()
@@ -40,7 +41,9 @@ def as_response(func):
     Decorator function that converts the output of a function into an instance
     of the <transloadit.response.Response> class.
     """
+
     @wraps(func)
     def _wrapper(*args, **kwargs):
         return Response(func(*args, **kwargs))
+
     return _wrapper

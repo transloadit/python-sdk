@@ -1,3 +1,5 @@
+* Drop Python versions before 3.6 as they are unsupported
+* Update code to Python 3 syntax
 ### 0.1.12/ 2020-14-12 ###
 
 * Send `transloadit-client` header along with requests
