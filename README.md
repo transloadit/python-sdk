@@ -1,6 +1,6 @@
 [![Build status](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml)
 
-# python-sdk
+# Transloadit python-sdk
 
 A **Python** Integration for [Transloadit](https://transloadit.com)'s file uploading and encoding service.
 
