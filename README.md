@@ -29,10 +29,10 @@ assembly.add_file(open('PATH/TO/FILE.jpg', 'rb'))
 assembly.add_step('resize', '/image/resize', {'width': 70, 'height': 70})
 assembly_response = assembly.create(retries=5, wait=True)
 
-print assembly_response.data.get('assembly_id')
+print(assembly_response.data.get('assembly_id'))
 
 # or
-print assembly_response.data['assembly_id']
+print(assembly_response.data['assembly_id'])
 ```
 
 ## Example
