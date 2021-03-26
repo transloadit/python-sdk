@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/transloadit/python-sdk.svg?branch=master)](https://travis-ci.org/transloadit/python-sdk)
+[![Build status](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml)
 
 # python-sdk
 
