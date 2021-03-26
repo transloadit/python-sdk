@@ -10,43 +10,56 @@ from transloadit.request import Request
 
 class RequestTest(unittest.TestCase):
     def setUp(self):
-        self.transloadit = Transloadit('key', 'secret')
+        self.transloadit = Transloadit("key", "secret")
         self.request = Request(self.transloadit)
 
     @requests_mock.Mocker()
     def test_get(self, mock):
-        url = '{}/foo'.format(self.transloadit.service)
-        mock.get(url, text='{"ok": "it works"}', request_headers={'Transloadit-Client': 'python-sdk:0.1.12'})
+        url = f"{self.transloadit.service}/foo"
+        mock.get(
+            url,
+            text='{"ok": "it works"}',
+            request_headers={"Transloadit-Client": "python-sdk:0.1.12"},
+        )
 
-        response = self.request.get('/foo')
-        self.assertEqual(response.data['ok'], 'it works')
+        response = self.request.get("/foo")
+        self.assertEqual(response.data["ok"], "it works")
 
     @requests_mock.Mocker()
     def test_post(self, mock):
-        url = '{}/foo'.format(self.transloadit.service)
+        url = f"{self.transloadit.service}/foo"
         sub_body = urllib.parse.quote_plus('"foo": "bar"')
-        mock.post(url, text='{"ok": "it works"}',
-                  additional_matcher=request_body_matcher(sub_body))
+        mock.post(
+            url,
+            text='{"ok": "it works"}',
+            additional_matcher=request_body_matcher(sub_body),
+        )
 
-        response = self.request.post('/foo', data={'foo': 'bar'})
-        self.assertEqual(response.data['ok'], 'it works')
+        response = self.request.post("/foo", data={"foo": "bar"})
+        self.assertEqual(response.data["ok"], "it works")
 
     @requests_mock.Mocker()
     def test_put(self, mock):
-        url = '{}/foo'.format(self.transloadit.service)
+        url = f"{self.transloadit.service}/foo"
         sub_body = urllib.parse.quote_plus('"foo": "bar"')
-        mock.put(url, text='{"ok": "it works"}',
-                 additional_matcher=request_body_matcher(sub_body))
+        mock.put(
+            url,
+            text='{"ok": "it works"}',
+            additional_matcher=request_body_matcher(sub_body),
+        )
 
-        response = self.request.put('/foo', data={'foo': 'bar'})
-        self.assertEqual(response.data['ok'], 'it works')
+        response = self.request.put("/foo", data={"foo": "bar"})
+        self.assertEqual(response.data["ok"], "it works")
 
     @requests_mock.Mocker()
     def test_delete(self, mock):
-        url = '{}/foo'.format(self.transloadit.service)
+        url = f"{self.transloadit.service}/foo"
         sub_body = urllib.parse.quote_plus('"foo": "bar"')
-        mock.delete(url, text='{"ok": "it works"}',
-                    additional_matcher=request_body_matcher(sub_body))
+        mock.delete(
+            url,
+            text='{"ok": "it works"}',
+            additional_matcher=request_body_matcher(sub_body),
+        )
 
-        response = self.request.delete('/foo', data={'foo': 'bar'})
-        self.assertEqual(response.data['ok'], 'it works')
+        response = self.request.delete("/foo", data={"foo": "bar"})
+        self.assertEqual(response.data["ok"], "it works")
