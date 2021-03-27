@@ -32,7 +32,7 @@ setup(
         "test": tests_require,
         "dev": ["tox>=2.3.1", "sphinx-autobuild==0.7.1", "Sphinx==1.7.1"],
     },
-    author_email="ifedapoolarewaju@gmail.com",
+    maintainer="Arnaud Limbourg",
     description="A Python Integration for https://transloadit.com file uploading and encoding service.",
     long_description=long_description,
     packages=["transloadit"],
