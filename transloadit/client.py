@@ -1,7 +1,11 @@
-from . import request
-from . import assembly
-from . import template
+import typing
 
+from typing import Optional
+
+from . import assembly, request, template
+
+if typing.TYPE_CHECKING:
+    from requests import Response
 
 class Transloadit:
     """
@@ -27,10 +31,10 @@ class Transloadit:
 
     def __init__(
         self,
-        auth_key,
-        auth_secret,
-        service="https://api2.transloadit.com",
-        duration=300,
+        auth_key: str,
+        auth_secret: str,
+        service: str = "https://api2.transloadit.com",
+        duration: int = 300,
     ):
         if not service.startswith(("http://", "https://")):
             service = "https://" + service
@@ -41,14 +45,14 @@ class Transloadit:
         self.duration = duration
         self.request = request.Request(self)
 
-    def new_assembly(self, params=None):
+    def new_assembly(self, params: dict = None) -> assembly.Assembly:
         """
         Return an instance of <transloadit.assembly.Assembly> which would be used to create
         a new assembly.
         """
         return assembly.Assembly(self, options=params)
 
-    def get_assembly(self, assembly_id=None, assembly_url=None):
+    def get_assembly(self, assembly_id: str = None, assembly_url: str = None) -> Response:
         """
         Get the assembly specified by the 'assembly_id' or the 'assembly_url'
         Either the assembly_id or the assembly_url must be specified
@@ -65,7 +69,7 @@ class Transloadit:
         url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
         return self.request.get(url)
 
-    def list_assemblies(self, params=None):
+    def list_assemblies(self, params: dict = None) -> Response:
         """
         Get the list of assemblies.
 
@@ -78,7 +82,7 @@ class Transloadit:
         """
         return self.request.get("/assemblies", params=params)
 
-    def cancel_assembly(self, assembly_id=None, assembly_url=None):
+    def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None) -> Response:
         """
         Cancel the assembly specified by the 'assembly_id' or the 'assembly_url'
         Either the assembly_id or the assembly_url must be specified
@@ -95,7 +99,7 @@ class Transloadit:
         url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
         return self.request.delete(url)
 
-    def get_template(self, template_id):
+    def get_template(self, template_id: str) -> Response:
         """
         Get the template specified by the 'template_id'.
 
@@ -106,7 +110,7 @@ class Transloadit:
         """
         return self.request.get(f"/templates/{template_id}")
 
-    def list_templates(self, params=None):
+    def list_templates(self, params: Optional[dict] = None) -> Response:
         """
         Get the list of templates.
 
@@ -119,7 +123,7 @@ class Transloadit:
         """
         return self.request.get("/templates", params=params)
 
-    def new_template(self, name, params=None):
+    def new_template(self, name: str, params: Optional[dict] = None) -> template.Template:
         """
         Return an instance of <transloadit.template.Template> which would be used to create
         a new template.
@@ -129,7 +133,7 @@ class Transloadit:
         """
         return template.Template(self, name, options=params)
 
-    def update_template(self, template_id, data):
+    def update_template(self, template_id: str, data: dict) -> Response:
         """
         Update the template specified by the 'template_id'.
 
@@ -141,7 +145,7 @@ class Transloadit:
         """
         return self.request.put(f"/templates/{template_id}", data=data)
 
-    def delete_template(self, template_id):
+    def delete_template(self, template_id: str) -> Response:
         """
         Delete the template specified by the 'template_id'.
 
@@ -152,7 +156,7 @@ class Transloadit:
         """
         return self.request.delete(f"/templates/{template_id}")
 
-    def get_bill(self, month, year):
+    def get_bill(self, month: int, year: int) -> Response:
         """
         Get the bill for the specified month and year.
 
