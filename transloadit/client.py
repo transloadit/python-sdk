@@ -52,7 +52,7 @@ class Transloadit:
         """
         return assembly.Assembly(self, options=params)
 
-    def get_assembly(self, assembly_id: str = None, assembly_url: str = None) -> Response:
+    def get_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
         Get the assembly specified by the 'assembly_id' or the 'assembly_url'
         Either the assembly_id or the assembly_url must be specified
@@ -69,7 +69,7 @@ class Transloadit:
         url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
         return self.request.get(url)
 
-    def list_assemblies(self, params: dict = None) -> Response:
+    def list_assemblies(self, params: dict = None):
         """
         Get the list of assemblies.
 
@@ -82,7 +82,7 @@ class Transloadit:
         """
         return self.request.get("/assemblies", params=params)
 
-    def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None) -> Response:
+    def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
         Cancel the assembly specified by the 'assembly_id' or the 'assembly_url'
         Either the assembly_id or the assembly_url must be specified
@@ -99,7 +99,7 @@ class Transloadit:
         url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
         return self.request.delete(url)
 
-    def get_template(self, template_id: str) -> Response:
+    def get_template(self, template_id: str):
         """
         Get the template specified by the 'template_id'.
 
@@ -110,7 +110,7 @@ class Transloadit:
         """
         return self.request.get(f"/templates/{template_id}")
 
-    def list_templates(self, params: Optional[dict] = None) -> Response:
+    def list_templates(self, params: Optional[dict] = None):
         """
         Get the list of templates.
 
@@ -133,7 +133,7 @@ class Transloadit:
         """
         return template.Template(self, name, options=params)
 
-    def update_template(self, template_id: str, data: dict) -> Response:
+    def update_template(self, template_id: str, data: dict):
         """
         Update the template specified by the 'template_id'.
 
@@ -145,7 +145,7 @@ class Transloadit:
         """
         return self.request.put(f"/templates/{template_id}", data=data)
 
-    def delete_template(self, template_id: str) -> Response:
+    def delete_template(self, template_id: str):
         """
         Delete the template specified by the 'template_id'.
 
@@ -156,7 +156,7 @@ class Transloadit:
         """
         return self.request.delete(f"/templates/{template_id}")
 
-    def get_bill(self, month: int, year: int) -> Response:
+    def get_bill(self, month: int, year: int):
         """
         Get the bill for the specified month and year.
 
