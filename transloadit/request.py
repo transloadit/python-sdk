@@ -67,7 +67,11 @@ class Request:
         if extra_data:
             data.update(extra_data)
         return requests.post(
-            self._get_full_url(path), data=data, files=files, headers=self.HEADERS, timeout=TIMEOUT,
+            self._get_full_url(path),
+            data=data,
+            files=files,
+            headers=self.HEADERS,
+            timeout=TIMEOUT,
         )
 
     @as_response
@@ -82,7 +86,12 @@ class Request:
         Return an instance of <transloadit.response.Response>
         """
         data = self._to_payload(data)
-        return requests.put(self._get_full_url(path), data=data, headers=self.HEADERS, timeout=TIMEOUT,)
+        return requests.put(
+            self._get_full_url(path),
+            data=data,
+            headers=self.HEADERS,
+            timeout=TIMEOUT,
+        )
 
     @as_response
     def delete(self, path, data=None):
@@ -97,7 +106,10 @@ class Request:
         """
         data = self._to_payload(data)
         return requests.delete(
-            self._get_full_url(path), data=data, headers=self.HEADERS, timeout=TIMEOUT,
+            self._get_full_url(path),
+            data=data,
+            headers=self.HEADERS,
+            timeout=TIMEOUT,
         )
 
     def _to_payload(self, data):
