@@ -111,6 +111,8 @@ class Assembly(optionbuilder.OptionBuilder):
                 response = self.transloadit.get_assembly(
                     assembly_url=response.data.get("assembly_ssl_url")
                 )
+                # wait a small amount between requests due to stricter rate limiting
+                sleep(0.2)
 
         if self._rate_limit_reached(response) and retries:
             # wait till rate limit is expired
