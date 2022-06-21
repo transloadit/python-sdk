@@ -10,7 +10,7 @@ from six import b
 from .response import as_response
 from . import __version__
 
-TIMEOUT = 30
+TIMEOUT = 60
 
 
 class Request:
