@@ -21,7 +21,7 @@ Pypandoc and Pandoc are needed to convert the readme from markdown to rst for th
 2. Publish to Pypi by running the following commands.
 
 ```bash
-python setup.py sdist
+python setup.py sdist bdist_wheel
 twine check dist/*
 twine upload dist/*
 ```
