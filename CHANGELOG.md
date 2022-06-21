@@ -1,5 +1,8 @@
+### 0.2.0/ 2022-21-06 ###
+
 * Drop Python versions before 3.7 as they are unsupported
 * Update code to Python 3 syntax
+* Prevent rate limiting when polling Assembly status
 
 ### 0.1.12/ 2020-14-12 ###
 
