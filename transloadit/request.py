@@ -10,6 +10,8 @@ from six import b
 from .response import as_response
 from . import __version__
 
+TIMEOUT = 30
+
 
 class Request:
     """
@@ -43,6 +45,7 @@ class Request:
             self._get_full_url(path),
             params=self._to_payload(params),
             headers=self.HEADERS,
+            timeout=TIMEOUT,
         )
 
     @as_response
@@ -64,7 +67,11 @@ class Request:
         if extra_data:
             data.update(extra_data)
         return requests.post(
-            self._get_full_url(path), data=data, files=files, headers=self.HEADERS
+            self._get_full_url(path),
+            data=data,
+            files=files,
+            headers=self.HEADERS,
+            timeout=TIMEOUT,
         )
 
     @as_response
@@ -79,7 +86,12 @@ class Request:
         Return an instance of <transloadit.response.Response>
         """
         data = self._to_payload(data)
-        return requests.put(self._get_full_url(path), data=data, headers=self.HEADERS)
+        return requests.put(
+            self._get_full_url(path),
+            data=data,
+            headers=self.HEADERS,
+            timeout=TIMEOUT,
+        )
 
     @as_response
     def delete(self, path, data=None):
@@ -94,7 +106,10 @@ class Request:
         """
         data = self._to_payload(data)
         return requests.delete(
-            self._get_full_url(path), data=data, headers=self.HEADERS
+            self._get_full_url(path),
+            data=data,
+            headers=self.HEADERS,
+            timeout=TIMEOUT,
         )
 
     def _to_payload(self, data):
