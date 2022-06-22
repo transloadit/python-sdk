@@ -33,3 +33,5 @@ Running the third command from above will prompt you for your [Pypi](https://pyp
 
 If all the steps above have been followed without errors, then you've successfully published a relaease. 🎉 
 
+* * * 
+Further reading for Transloadians: https://github.com/transloadit/team-internals/blob/master/_howtos/2020-12-14-maintain-python-sdk.md
