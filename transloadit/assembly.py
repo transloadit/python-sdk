@@ -108,7 +108,11 @@ class Assembly(optionbuilder.OptionBuilder):
 
         if wait:
             while not self._assembly_finished(response):
-                sleep(1)  # avoid hitting a rate limit
+                # if a wait period is provided by the API due to polling
+                # rate limit, we should use that period, otherwise, we
+                # will fallback to 1 second.
+                sleep_time = response.data.get("info", {}).get("retryIn", 1)
+                sleep(sleep_time)
                 response = self.transloadit.get_assembly(
                     assembly_url=response.data.get("assembly_ssl_url")
                 )
@@ -116,7 +120,7 @@ class Assembly(optionbuilder.OptionBuilder):
         if self._rate_limit_reached(response) and retries:
             # wait till rate limit is expired
             sleep(response.data.get("info", {}).get("retryIn", 1))
-            self.create(wait, resumable, retries - 1)
+            return self.create(wait, resumable, retries - 1)
 
         return response
 
@@ -125,8 +129,10 @@ class Assembly(optionbuilder.OptionBuilder):
         is_aborted = status == "REQUEST_ABORTED"
         is_canceled = status == "ASSEMBLY_CANCELED"
         is_completed = status == "ASSEMBLY_COMPLETED"
-        is_failed = response.data.get("error") is not None
-        return is_aborted or is_canceled or is_completed or is_failed
+        error = response.data.get("error")
+        is_failed = error is not None
+        is_fetch_rate_limit = error == "ASSEMBLY_STATUS_FETCHING_RATE_LIMIT_REACHED"
+        return is_aborted or is_canceled or is_completed or (is_failed and not is_fetch_rate_limit)
 
     def _rate_limit_reached(self, response):
         return response.data.get("error") == "RATE_LIMIT_REACHED"
