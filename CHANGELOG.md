@@ -1,3 +1,8 @@
+### 0.2.1/ 2022-29-08 ###
+
+* Add documentation on publishing releases
+* Avoid creating a new Assembly when a rate limit error is received from fetching an Assembly too frequently
+
 ### 0.2.0/ 2022-21-06 ###
 
 * Drop Python versions before 3.7 as they are unsupported
