@@ -37,7 +37,7 @@ print(assembly_response.data['assembly_id'])
 
 ## Example
 
-For fully working examples, take a look at [`examples/`](https://github.com/transloadit/python-sdk/tree/master/examples).
+For fully working examples, take a look at [`examples/`](https://github.com/transloadit/python-sdk/tree/HEAD/examples).
 
 ## Documentation
 

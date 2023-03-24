@@ -8,7 +8,7 @@ Welcome to transloadit's Python SDK documentation!
 
 |Build Status|
 
-.. |Build Status| image:: https://travis-ci.org/transloadit/python-sdk.svg?branch=master
+.. |Build Status| image:: https://travis-ci.org/transloadit/python-sdk.svg?branch=main
    :target: https://travis-ci.org/transloadit/python-sdk
 
 `Transloadit`_ is a service that helps you handle file uploads, resize,
@@ -69,4 +69,4 @@ Example
 
 For fully working examples, take a look at `examples/`_.
 
-.. _examples/: https://github.com/transloadit/python-sdk/tree/master/examples
+.. _examples/: https://github.com/transloadit/python-sdk/tree/HEAD/examples
