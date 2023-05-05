@@ -1,5 +1,4 @@
-
-### A simple Transloadit assembly that converts a .doc file to a .txt file. It then generates an mp3 based on the .txt file using a text-to-speech Robot.
+### A simple Transloadit Assembly that converts a .doc file to a .txt file. It then generates a .mp3 based on the .txt file using a text-to-speech Robot.
 
 '''
 Template:
@@ -42,4 +41,4 @@ def useTemplate(templateID, file_path='', result_name='', get_url=True, fields='
         print(assembly_url)
         return assembly_url
     
-useTemplate ('TEMPLATE_ID', file_path='fixtures/document.doc' ,result_name='speech', get_url=True)
+useTemplate ('TEMPLATE_ID', file_path='fixtures/document.doc', result_name='speech', get_url=True)
