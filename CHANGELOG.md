@@ -1,3 +1,6 @@
+### Unreleased
+- Drop Python 3.6 from CI. It has been unsupported since December 2021 and github actions runner don't support anymore (https://github.com/actions/setup-python/issues/544)
+
 ### 0.2.1/ 2022-29-08 ###
 
 * Add documentation on publishing releases
