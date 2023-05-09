@@ -1,3 +1,5 @@
+### A simple Transloadit assembly that changes the size of an image.
+
 from transloadit.client import Transloadit
 
 client = Transloadit("TRANSLOADIT_KEY", "TRANSLOADIT_SECRET")
