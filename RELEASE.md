@@ -32,7 +32,7 @@ Running the third command from above will prompt you for your [Pypi](https://pyp
 
 3. Now that release has been published on Pypi, please head to GitHub to [draft a new tag release](https://github.com/transloadit/python-sdk/releases). Point this tag release to the latest commit pushed on step 1 above. Once you're done drafting the release, go ahead to publish it.
 
-If all the steps above have been followed without errors, then you've successfully published a relaease. 🎉
+If all the steps above have been followed without errors, then you've successfully published a release. 🎉
 
 ---
 
