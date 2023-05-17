@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytransloadit"
-version = "0.2.1"
+version = "0.2.2"
 description = "A Python Integration for Transloadit’s file uploading and encoding service."
 authors = ["Ifedapo Olarewaju"]
 maintainers = ["Arnaud Limbourg"]
@@ -21,6 +21,9 @@ classifiers=[
     "Topic :: Communications :: File Sharing",
     "Topic :: Multimedia :: Video :: Conversion",
     "Topic :: Multimedia :: Sound/Audio :: Conversion",
+]
+packages = [
+    { include = "transloadit" },
 ]
 
 [tool.poetry.dependencies]
