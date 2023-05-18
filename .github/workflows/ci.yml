@@ -20,8 +20,9 @@ jobs:
           architecture: x64
 
       - name: Install Dependencies
-        run: pip install -e .[test]
+        run: pip install --upgrade poetry
+        run: poetry install
 
       - name: Test with pytest
         run: |
-          pytest --cov=transloadit tests
+          poetry run pytest --cov=transloadit tests
