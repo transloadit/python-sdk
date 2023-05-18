@@ -19,9 +19,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: x64
 
+      - name: Install Poetry manager
+        run: pip install --upgrade poetry
+
       - name: Install Dependencies
-        run: pip install -e .[test]
+        run: poetry install
 
       - name: Test with pytest
         run: |
-          pytest --cov=transloadit tests
+          poetry run pytest --cov=transloadit tests

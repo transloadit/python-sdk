@@ -4,35 +4,48 @@ This is a Howto guide on the commands to run and files to update in order to pub
 
 ### Prerequisite
 
-You need to have `twine`, `pypandoc`, and `pandoc` installed.
+Poetry will handle things for us. You need to configure poetry with your pypi token for the publishing process to work.
+
+Enable testing publishing on pypi test index.
 
 ```bash
-pip install twine
-pip install pypandoc
+poetry config repositories.test-pypi https://test.pypi.org/legacy/
+poetry config pypi-token.test-pypi pypi-XXXXX
 ```
 
-To Install `pandoc` please [see](https://pandoc.org/installing.html).
+To setup your token to publish to pypi.
 
-Pypandoc and Pandoc are needed to convert the readme from markdown to rst for the package's documentation page on [Pypi](https://pypi.org/project/pytransloadit/).
+```bash
+poetry config pypi-token.pypi pypi-XXXXX`````
+```
 
 ### Release Steps
 
 1. Update the changelog, the version file, and the test file as done in [this commit](https://github.com/transloadit/python-sdk/commit/35789c535bd02086ff8f3a07eda9583d6e676d4d) and push it to main.
-2. Publish to Pypi by running the following commands.
+2. Update the version 
+```bash
+# e.g: 0.2.2 -> 0.2.3a0
+poetry version prerelease
+# or the following for, e.g.: 0.2.3
+poetry version patch
+```
+3. Publish to Pypi
+
+Pypi test index
 
 ```bash
-python setup.py sdist bdist_wheel
-twine check dist/*
-twine upload dist/*
+poetry build
+poetry publish -r test-pypi
 ```
 
-The second command above (`twine check dist/*`) is meant to check for errors in the dist build, so please abort and try to fix issues if you see any errors from running the command.
+To publish to pypi
+```bash
+poetry publish
+```
 
-Running the third command from above will prompt you for your [Pypi](https://pypi.org/project/pytransloadit/) username and password.
+4. Now that release has been published on Pypi, please head to GitHub to [draft a new tag release](https://github.com/transloadit/python-sdk/releases). Point this tag release to the latest commit pushed on step 1 above. Once you're done drafting the release, go ahead to publish it.
 
-3. Now that release has been published on Pypi, please head to GitHub to [draft a new tag release](https://github.com/transloadit/python-sdk/releases). Point this tag release to the latest commit pushed on step 1 above. Once you're done drafting the release, go ahead to publish it.
-
-If all the steps above have been followed without errors, then you've successfully published a relaease. 🎉
+If all the steps above have been followed without errors, then you've successfully published a release. 🎉
 
 ---
 
