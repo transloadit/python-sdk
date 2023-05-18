@@ -27,7 +27,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.8,<3.12"
 requests = "^2.30.0"
 tuspy = "^1.0.0"
 
