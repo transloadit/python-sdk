@@ -18,6 +18,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
+          cache: "poetry"
 
       - name: Install Poetry manager
         run: pip install --upgrade poetry
