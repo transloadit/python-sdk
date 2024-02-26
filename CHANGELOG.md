@@ -1,4 +1,4 @@
-### 0.2.2 / 2023-27-03 ###
+### 0.2.2 / 2024-27-03 ###
 - Change the way the `transloadit` client is initialized. Now it is possible to pass the `sha_384` boolean parameter to the `Transloadit` class to enable the `sha_384` hash algorithm for the signature. The default value is `True` and the `sha_384` algorithm is used. The `sha_384` algorithm is recommended for new integrations and it is required for the new Transloadit accounts. The `sha_1` algorithm is deprecated and it will be removed in the future. For compatibility reasons it is possible to use `sha_1` with the `sha_384` parameter set to `False`. 
 - Added `sha_384` as hash algorithm for the signature authentication.
 
