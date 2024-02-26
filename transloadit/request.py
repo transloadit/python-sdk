@@ -123,10 +123,13 @@ class Request:
         return {"params": json_data, "signature": self._sign_data(json_data)}
 
     def _sign_data(self, message):
-        return hmac.new(
-            b(self.transloadit.auth_secret), message.encode("utf-8"), hashlib.sha1
-        ).hexdigest()
+        if not self.transloadit.sha_384:
+            return hmac.new(b(self.transloadit.auth_secret), message.encode("utf-8"), hashlib.sha1).hexdigest()
 
+        else:
+            hash_string = hmac.new(b(self.transloadit.auth_secret), message.encode("utf-8"), hashlib.sha384).hexdigest()
+            return f"sha384:{hash_string}"
+        
     def _get_full_url(self, url):
         if url.startswith(("http://", "https://")):
             return url
