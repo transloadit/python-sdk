@@ -16,7 +16,6 @@ class Transloadit:
         - auth_secret (str): Transloadit auth secret.
         - service (Optional[str]): URL of the Transloadit API.
         - duration (int): How long in seconds for which a Transloadit request should be valid.
-        - sha_384 (bool): Whether to use SHA-384 for signing requests. Defaults to True. If False, SHA-1 is used.
         - request (transloadit.request.Request): An instance of the Transloadit HTTP Request object.
 
     :Constructor Args:
@@ -28,17 +27,14 @@ class Transloadit:
         - duration (Optional[int]):
             How long in seconds for which a Transloadit request should be valid. Defaults to 300
             if not specified.
-        - sha_384 (Optional[bool]):
-            Whether to use SHA-384 for signing requests. Defaults to True. If False, SHA-1 is used.
     """
 
     def __init__(
-        self,
-        auth_key: str,
-        auth_secret: str,
-        service: str = "https://api2.transloadit.com",
-        duration: int = 300,
-        sha_384: bool = True,
+            self,
+            auth_key: str,
+            auth_secret: str,
+            service: str = "https://api2.transloadit.com",
+            duration: int = 300,
     ):
         if not service.startswith(("http://", "https://")):
             service = "https://" + service
@@ -47,7 +43,6 @@ class Transloadit:
         self.auth_key = auth_key
         self.auth_secret = auth_secret
         self.duration = duration
-        self.sha_384 = sha_384
         self.request = request.Request(self)
         
     def new_assembly(self, params: dict = None) -> assembly.Assembly:
