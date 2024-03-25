@@ -1,13 +1,11 @@
 import copy
 import json
 import unittest
-from datetime import timedelta
-
 import requests_mock
-
-from tests import get_test_time, request_body_matcher
+from datetime import timedelta
 from transloadit.client import Transloadit
 from transloadit.request import Request
+from . import get_test_time, request_body_matcher
 
 
 class TestSignatureAuthentication(unittest.TestCase):
