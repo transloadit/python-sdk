@@ -7,6 +7,7 @@ from . import assembly, request, template
 if typing.TYPE_CHECKING:
     from requests import Response
 
+
 class Transloadit:
     """
     This class serves as a client interface to the Transloadit API.
@@ -30,11 +31,11 @@ class Transloadit:
     """
 
     def __init__(
-        self,
-        auth_key: str,
-        auth_secret: str,
-        service: str = "https://api2.transloadit.com",
-        duration: int = 300,
+            self,
+            auth_key: str,
+            auth_secret: str,
+            service: str = "https://api2.transloadit.com",
+            duration: int = 300,
     ):
         if not service.startswith(("http://", "https://")):
             service = "https://" + service
