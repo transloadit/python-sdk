@@ -1,4 +1,4 @@
-### 0.2.2 / 2023-27-03 ###
+### unreleased ###
 - Added `sha_384` as hash algorithm for the signature authentication.
 - Drop Python 3.6 from CI. It has been unsupported since December 2021 and github actions runner don't support anymore (https://github.com/actions/setup-python/issues/544)
 
