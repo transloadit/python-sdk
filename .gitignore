@@ -103,6 +103,7 @@ ENV/
 
 # Code editor files
 .vscode/
+.idea/
 
 # osx
 .DS_Store
