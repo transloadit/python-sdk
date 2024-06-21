@@ -27,10 +27,9 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.13"
+python = ">=3.9,<3.13"
 requests = "^2.30.0"
 tuspy = "^1.0.0"
-frozenlist = "^1.4.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
