@@ -19,7 +19,7 @@ class RequestTest(unittest.TestCase):
         mock.get(
             url,
             text='{"ok": "it works"}',
-            request_headers={"Transloadit-Client": "python-sdk:0.2.1"},
+            request_headers={"Transloadit-Client": "python-sdk:1.0.0"},
         )
 
         response = self.request.get("/foo")
