@@ -1,6 +1,6 @@
 ### 1.0.0/ 2024-12-07 ###
 
-* Drop Python versions before 3.9 as they are unsupported
+* **Breaking Change**: Python versions prior to 3.9 have been deleted as they are no longer supported.
 * Updating packages versions.
 
 ### 0.2.2/ 2024-10-04 ###
