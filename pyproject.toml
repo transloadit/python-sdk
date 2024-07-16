@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytransloadit"
-version = "0.2.2"
+version = "1.0.0"
 description = "A Python Integration for Transloadit’s file uploading and encoding service."
 authors = ["Ifedapo Olarewaju"]
 maintainers = ["Florian Kuenzig", "Arnaud Limbourg"]
@@ -27,7 +27,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.7,<3.12"
+python = ">=3.9,<3.13"
 requests = "^2.30.0"
 tuspy = "^1.0.0"
 
@@ -37,7 +37,7 @@ mock = "^5.0.2"
 coverage = "^7.2.5"
 pytest-cov = "^4.0.0"
 requests-mock = "^1.10.0"
-tox = "^4.5.1"
+tox = "^4.7.0"
 sphinx = "^4.5.0"
 sphinx-autobuild = "^2021.3.14"
 
