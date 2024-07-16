@@ -1,4 +1,4 @@
-### 1.0.0/ 2024-12-07 ###
+### 1.0.0/ 2024-16-07 ###
 
 * **Breaking Change**: Python versions prior to 3.9 have been deleted as they are no longer supported.
 * Updating packages versions.
