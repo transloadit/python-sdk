@@ -1,4 +1,8 @@
 import typing
+import hmac
+import hashlib
+import time
+from urllib.parse import urlencode, quote_plus
 
 from typing import Optional
 
@@ -168,3 +172,52 @@ class Transloadit:
         Return an instance of <transloadit.response.Response>
         """
         return self.request.get(f"/bill/{year}-{month:02d}")
+    
+    def get_signed_smart_cdn_url(
+        self,
+        workspace: str,
+        template: str,
+        input: str,
+        url_params: Optional[dict] = None,
+        expires_in: Optional[int] = 60 * 60 * 1000 # 1 hour
+    ) -> str:
+        """
+        Construct a signed Smart CDN URL.
+        See https://transloadit.com/docs/topics/signature-authentication/#smart-cdn
+
+        :Args:
+            - workspace (str): Workspace slug
+            - template (str): Template slug or template ID
+            - input (str): Input value that is provided as ${fields.input} in the template
+            - url_params (Optional[dict]): Additional parameters for the URL query string
+            - expires_in (Optional[int]): Expiration time of signature in milliseconds. Defaults to 1 hour.
+
+        :Returns:
+            str: The signed Smart CDN URL
+        """
+        workspace_slug = quote_plus(workspace)
+        template_slug = quote_plus(template)
+        input_field = quote_plus(input)
+
+        # Convert url_params values to strings
+        params = {}
+        if url_params:
+            params.update({k: str(v) for k, v in url_params.items()})
+
+        params["auth_key"] = self.auth_key
+        params["exp"] = str(int(time.time() * 1000) + expires_in)
+
+        # Sort params alphabetically
+        sorted_params = dict(sorted(params.items()))
+        query_string = urlencode(sorted_params)
+
+        string_to_sign = f"{workspace_slug}/{template_slug}/{input_field}?{query_string}"
+        algorithm = "sha256"
+        
+        signature = hmac.new(
+            self.auth_secret.encode("utf-8"),
+            string_to_sign.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        return f"https://{workspace_slug}.tlcdn.com/{template_slug}/{input_field}?{query_string}&sig={algorithm}:{signature}"
