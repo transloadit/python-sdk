@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 import requests_mock
 from six.moves import urllib
@@ -94,3 +95,24 @@ class ClientTest(unittest.TestCase):
 
         response = self.transloadit.get_bill(month, year)
         self.assertEqual(response.data["ok"], "BILL_FOUND")
+
+    def test_get_signed_smart_cdn_url(self):
+        client = Transloadit("foo_key", "foo_secret")
+
+        # Freeze time to 2024-05-01T00:00:00.000Z for consistent signatures
+        with mock.patch('time.time', return_value=1714521600):
+            url = client.get_signed_smart_cdn_url(
+                workspace="foo_workspace",
+                template="foo_template",
+                input="foo/input",
+                url_params={
+                    "foo": "bar",
+                    "aaa": [42, 21]  # Should be sorted before `foo`
+                }
+            )
+
+        expected_url = (
+            "https://foo_workspace.tlcdn.com/foo_template/foo%2Finput?aaa=42&aaa=21&auth_key=foo_key&exp=1714525200000&foo=bar&sig=sha256%3A9a8df3bb28eea621b46ec808a250b7903b2546be7e66c048956d4f30b8da7519"
+        )
+        
+        self.assertEqual(url, expected_url)

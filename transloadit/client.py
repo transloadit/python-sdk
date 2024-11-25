@@ -1,4 +1,8 @@
 import typing
+import hmac
+import hashlib
+import time
+from urllib.parse import urlencode, quote_plus
 
 from typing import Optional
 
@@ -168,3 +172,60 @@ class Transloadit:
         Return an instance of <transloadit.response.Response>
         """
         return self.request.get(f"/bill/{year}-{month:02d}")
+    
+    def get_signed_smart_cdn_url(
+        self,
+        workspace: str,
+        template: str,
+        input: str,
+        url_params: Optional[dict] = None,
+        expires_in: Optional[int] = 60 * 60 * 1000 # 1 hour
+    ) -> str:
+        """
+        Construct a signed Smart CDN URL.
+        See https://transloadit.com/docs/topics/signature-authentication/#smart-cdn
+
+        :Args:
+            - workspace (str): Workspace slug
+            - template (str): Template slug or template ID
+            - input (str): Input value that is provided as ${fields.input} in the template
+            - url_params (Optional[dict]): Additional parameters for the URL query string. Values can be strings, numbers, booleans or arrays thereof.
+            - expires_in (Optional[int]): Expiration time of signature in milliseconds. Defaults to 1 hour.
+
+        :Returns:
+            str: The signed Smart CDN URL
+
+        :Raises:
+            ValueError: If url_params contains values that are not strings, numbers, booleans or arrays
+        """
+        workspace_slug = quote_plus(workspace)
+        template_slug = quote_plus(template)
+        input_field = quote_plus(input)
+
+        params = []
+        if url_params:
+            for k, v in url_params.items():
+                if isinstance(v, (str, int, float, bool)):
+                    params.append((k, str(v)))
+                elif isinstance(v, (list, tuple)):
+                    params.append((k, [str(vv) for vv in v]))
+                else:
+                    raise ValueError(f"URL parameter values must be strings, numbers, booleans or arrays. Got {type(v)} for {k}")
+
+        params.append(("auth_key", self.auth_key))
+        params.append(("exp", str(int(time.time() * 1000) + expires_in)))
+
+        # Sort params alphabetically by key
+        sorted_params = sorted(params, key=lambda x: x[0])
+        query_string = urlencode(sorted_params, doseq=True)
+
+        string_to_sign = f"{workspace_slug}/{template_slug}/{input_field}?{query_string}"
+        algorithm = "sha256"
+        
+        signature = algorithm + ":" + hmac.new(
+            self.auth_secret.encode("utf-8"),
+            string_to_sign.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        return f"https://{workspace_slug}.tlcdn.com/{template_slug}/{input_field}?{query_string}&sig={quote_plus(signature)}"
