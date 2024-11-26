@@ -2,6 +2,7 @@ import unittest
 from unittest import mock
 import json
 import os
+import platform
 import subprocess
 import time
 from pathlib import Path
@@ -16,6 +17,11 @@ from transloadit.client import Transloadit
 def get_expected_url(params):
     """Get expected URL from Node.js reference implementation."""
     if os.getenv('TEST_NODE_PARITY') != '1':
+        return None
+
+    # Skip Node.js parity testing on Windows
+    if platform.system() == 'Windows':
+        print('Skipping Node.js parity testing on Windows')
         return None
 
     # Check for tsx before trying to use it
