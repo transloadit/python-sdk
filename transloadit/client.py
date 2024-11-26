@@ -179,7 +179,7 @@ class Transloadit:
         template: str,
         input: str,
         url_params: Optional[dict[str, Union[str, int, float, bool, List[Union[str, int, float, bool]], None]]] = None,
-        expires_in: Optional[int] = 60 * 60 * 1000 # 1 hour
+        expires_at_ms: Optional[int] = None
     ) -> str:
         """
         Construct a signed Smart CDN URL.
@@ -190,7 +190,7 @@ class Transloadit:
             - template (str): Template slug or template ID
             - input (str): Input value that is provided as ${fields.input} in the template
             - url_params (Optional[dict]): Additional parameters for the URL query string. Values can be strings, numbers, booleans, arrays thereof, or None.
-            - expires_in (Optional[int]): Expiration time of signature in milliseconds. Defaults to 1 hour.
+            - expires_at_ms (Optional[int]): Timestamp in milliseconds since epoch when the signature is no longer valid. Defaults to 1 hour from now.
 
         :Returns:
             str: The signed Smart CDN URL
@@ -201,6 +201,8 @@ class Transloadit:
         workspace_slug = quote_plus(workspace)
         template_slug = quote_plus(template)
         input_field = quote_plus(input)
+
+        expiry = expires_at_ms if expires_at_ms is not None else int(time.time() * 1000) + 60 * 60 * 1000  # 1 hour default
 
         params = []
         if url_params:
@@ -215,7 +217,7 @@ class Transloadit:
                     raise ValueError(f"URL parameter values must be strings, numbers, booleans, arrays, or None. Got {type(v)} for {k}")
 
         params.append(("auth_key", self.auth_key))
-        params.append(("exp", str(int(time.time() * 1000) + expires_in)))
+        params.append(("exp", str(expiry)))
 
         # Sort params alphabetically by key
         sorted_params = sorted(params, key=lambda x: x[0])

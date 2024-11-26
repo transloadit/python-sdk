@@ -161,7 +161,7 @@ class ClientTest(unittest.TestCase):
                 params['template'],
                 params['input'],
                 {},
-                3600 * 1000  # 1 hour
+                expires_at_ms=self.expire_at_ms
             )
 
         expected_url = 'https://workspace.tlcdn.com/template/file.jpg?auth_key=test-key&exp=1732550672867&sig=sha256%3Ad994b8a737db1c43d6e04a07018dc33e8e28b23b27854bd6383d828a212cfffb'
@@ -176,7 +176,7 @@ class ClientTest(unittest.TestCase):
                 params['template'],
                 params['input'],
                 {},
-                3600 * 1000
+                expires_at_ms=self.expire_at_ms
             )
 
         expected_url = 'https://workspace.tlcdn.com/template/input.jpg?auth_key=test-key&exp=1732550672867&sig=sha256%3A75991f02828d194792c9c99f8fea65761bcc4c62dbb287a84f642033128297c0'
@@ -192,7 +192,7 @@ class ClientTest(unittest.TestCase):
                 params['template'],
                 params['input'],
                 params['url_params'],
-                3600 * 1000
+                expires_at_ms=self.expire_at_ms
             )
 
         expected_url = 'https://workspace.tlcdn.com/template/file.jpg?auth_key=test-key&exp=1732550672867&width=100&sig=sha256%3Ae5271d8fb6482d9351ebe4285b6fc75539c4d311ff125c4d76d690ad71c258ef'
@@ -207,7 +207,7 @@ class ClientTest(unittest.TestCase):
                 params['template'],
                 params['input'],
                 params['url_params'],
-                3600 * 1000
+                expires_at_ms=self.expire_at_ms
             )
 
         expected_url = 'https://workspace.tlcdn.com/template/file.jpg?auth_key=test-key&exp=1732550672867&height=200&width=&sig=sha256%3A1a26733c859f070bc3d83eb3174650d7a0155642e44a5ac448a43bc728bc0f85'
@@ -222,7 +222,7 @@ class ClientTest(unittest.TestCase):
                 params['template'],
                 params['input'],
                 params['url_params'],
-                3600 * 1000
+                expires_at_ms=self.expire_at_ms
             )
 
         expected_url = 'https://workspace.tlcdn.com/template/file.jpg?auth_key=test-key&exp=1732550672867&height=200&sig=sha256%3Adb740ebdfad6e766ebf6516ed5ff6543174709f8916a254f8d069c1701cef517'
@@ -237,7 +237,7 @@ class ClientTest(unittest.TestCase):
                 params['template'],
                 params['input'],
                 params['url_params'],
-                3600 * 1000
+                expires_at_ms=self.expire_at_ms
             )
 
         expected_url = 'https://workspace.tlcdn.com/template/file.jpg?auth_key=test-key&exp=1732550672867&width=&sig=sha256%3A840426f9ac72dde02fd080f09b2304d659fdd41e630b1036927ec1336c312e9d'
