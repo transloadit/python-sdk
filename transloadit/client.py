@@ -4,7 +4,7 @@ import hashlib
 import time
 from urllib.parse import urlencode, quote_plus
 
-from typing import Optional
+from typing import Optional, Union, List
 
 from . import assembly, request, template
 
@@ -178,7 +178,7 @@ class Transloadit:
         workspace: str,
         template: str,
         input: str,
-        url_params: Optional[dict[str, Union[str, int, float, bool, List[Union[str, int, float, bool]]]] = None,
+        url_params: Optional[dict[str, Union[str, int, float, bool, List[Union[str, int, float, bool]]]]] = None,
         expires_in: Optional[int] = 60 * 60 * 1000 # 1 hour
     ) -> str:
         """
