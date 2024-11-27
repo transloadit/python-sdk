@@ -33,13 +33,20 @@ jobs:
       - name: Install Dependencies
         run: poetry install
 
-      - name: Test with pytest
+      - name: Test with coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         run: |
           poetry run pytest --cov=transloadit \
                           --cov-report=xml \
+                          --cov-report=json \
+                          --cov-report=html \
                           --cov-report=term-missing \
                           --cov-fail-under=65 \
                           tests
+
+      - name: Test without coverage
+        if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.12'
+        run: poetry run pytest tests
 
       - name: Upload coverage reports
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
@@ -51,45 +58,8 @@ jobs:
           name: python-sdk
           fail_ci_if_error: true
 
-  coverage:
-    needs: python
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-          architecture: x64
-          cache: 'pip'
-
-      - name: Install Poetry
-        run: pip install --upgrade poetry
-
-      - name: Install Dependencies
-        run: poetry install
-
-      - name: Generate coverage report
-        run: |
-          poetry run pytest --cov=transloadit \
-                          --cov-report=json \
-                          --cov-report=html \
-                          tests
-
-      - name: Check coverage thresholds
-        run: |
-          COVERAGE=$(poetry run coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
-          THRESHOLD=65
-
-          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
-            echo "Coverage ($COVERAGE%) is below threshold ($THRESHOLD%)"
-            exit 1
-          else
-            echo "Coverage ($COVERAGE%) meets threshold ($THRESHOLD%)"
-          fi
-
       - name: Upload coverage artifacts
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports
