@@ -20,7 +20,14 @@ jobs:
           architecture: x64
           cache: 'pip'
 
-      - name: Install Poetry manager
+      - name: Install Poetry (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+          echo "$HOME\AppData\Roaming\Python\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Poetry (Unix)
+        if: runner.os != 'Windows'
         run: pip install --upgrade poetry
 
       - name: Install Dependencies
@@ -57,7 +64,7 @@ jobs:
           architecture: x64
           cache: 'pip'
 
-      - name: Install Poetry manager
+      - name: Install Poetry
         run: pip install --upgrade poetry
 
       - name: Install Dependencies
