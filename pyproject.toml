@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "pytransloadit"
 version = "1.0.0"
-description = "A Python Integration for Transloadit’s file uploading and encoding service."
+description = "A Python Integration for Transloadit's file uploading and encoding service."
 authors = ["Ifedapo Olarewaju"]
 maintainers = ["Florian Kuenzig", "Arnaud Limbourg"]
 license = "MIT"
@@ -44,3 +44,24 @@ sphinx-autobuild = "^2021.3.14"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "--cov=transloadit --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["transloadit"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]
+ignore_errors = true
+fail_under = 65

@@ -1,4 +1,5 @@
 [![Build status](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/transloadit/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/transloadit/python-sdk)
 
 # Transloadit python-sdk
 
@@ -42,3 +43,31 @@ For fully working examples, take a look at [`examples/`](https://github.com/tran
 ## Documentation
 
 See [readthedocs](https://transloadit.readthedocs.io) for full API documentation.
+
+## Development
+
+### Testing
+
+Run tests with:
+
+```bash
+poetry run pytest
+```
+
+### Code Coverage
+
+We maintain code coverage to ensure reliability. The current minimum coverage threshold is 65%.
+
+Coverage reports are:
+
+- Generated locally in the `htmlcov` directory
+- Uploaded to Codecov for tracking
+- Enforced in CI (builds will fail if coverage drops below threshold)
+
+View the coverage report locally by opening `htmlcov/index.html` in your browser.
+
+Generate a coverage report with:
+
+```bash
+poetry run pytest --cov=transloadit --cov-report=html tests
+```

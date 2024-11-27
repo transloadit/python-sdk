@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
 
     steps:
       - uses: actions/checkout@v3
@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
-          cache: "pip"
+          cache: 'pip'
 
       - name: Install Poetry manager
         run: pip install --upgrade poetry
@@ -28,4 +28,64 @@ jobs:
 
       - name: Test with pytest
         run: |
-          poetry run pytest --cov=transloadit tests
+          poetry run pytest --cov=transloadit \
+                          --cov-report=xml \
+                          --cov-report=term-missing \
+                          --cov-fail-under=65 \
+                          tests
+
+      - name: Upload coverage reports
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+          name: python-sdk
+          fail_ci_if_error: true
+
+  coverage:
+    needs: python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: 'pip'
+
+      - name: Install Poetry manager
+        run: pip install --upgrade poetry
+
+      - name: Install Dependencies
+        run: poetry install
+
+      - name: Generate coverage report
+        run: |
+          poetry run pytest --cov=transloadit \
+                          --cov-report=json \
+                          --cov-report=html \
+                          tests
+
+      - name: Check coverage thresholds
+        run: |
+          COVERAGE=$(poetry run coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
+          THRESHOLD=65
+
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "Coverage ($COVERAGE%) is below threshold ($THRESHOLD%)"
+            exit 1
+          else
+            echo "Coverage ($COVERAGE%) meets threshold ($THRESHOLD%)"
+          fi
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage.json
+            htmlcov/
