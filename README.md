@@ -1,4 +1,5 @@
 [![Build status](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/transloadit/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/transloadit/python-sdk)
 
 # Transloadit python-sdk
 
@@ -42,3 +43,33 @@ For fully working examples, take a look at [`examples/`](https://github.com/tran
 ## Documentation
 
 See [readthedocs](https://transloadit.readthedocs.io) for full API documentation.
+
+## Contributing
+
+### Running tests
+
+If you have a global installation of `poetry`, you can run the tests with:
+
+```bash
+poetry run pytest --cov=transloadit tests
+```
+
+If you can't use a global installation of `poetry`, e.g. when using Nix Home Manager, you can create a Python virtual environment and install Poetry there:
+
+```bash
+python -m venv .venv && source .venv/bin/activate && pip install poetry && poetry install
+```
+
+Then to run the tests:
+
+```bash
+source .venv/bin/activate && poetry run pytest --cov=transloadit tests
+```
+
+Generate a coverage report with:
+
+```bash
+poetry run pytest --cov=transloadit --cov-report=html tests
+```
+
+Then view the coverage report locally by opening `htmlcov/index.html` in your browser.

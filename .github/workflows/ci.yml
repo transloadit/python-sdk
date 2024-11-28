@@ -8,24 +8,69 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install tsx
+        run: npm install -g tsx
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
-          cache: "pip"
+          cache: 'pip'
 
-      - name: Install Poetry manager
+      - name: Install Poetry (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+          echo "$HOME\AppData\Roaming\Python\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Poetry (Unix)
+        if: runner.os != 'Windows'
         run: pip install --upgrade poetry
 
       - name: Install Dependencies
         run: poetry install
 
-      - name: Test with pytest
+      - name: Test with coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         run: |
-          poetry run pytest --cov=transloadit tests
+          poetry run pytest --cov=transloadit \
+                          --cov-report=xml \
+                          --cov-report=json \
+                          --cov-report=html \
+                          --cov-report=term-missing \
+                          --cov-fail-under=65 \
+                          tests
+        env:
+          TEST_NODE_PARITY: 1
+
+      - name: Test without coverage
+        if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.12'
+        run: poetry run pytest tests
+
+      - name: Upload coverage reports
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+          name: python-sdk
+          fail_ci_if_error: true
+
+      - name: Upload coverage artifacts
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage.json
+            htmlcov/
