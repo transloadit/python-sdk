@@ -44,7 +44,7 @@ For fully working examples, take a look at [`examples/`](https://github.com/tran
 
 See [readthedocs](https://transloadit.readthedocs.io) for full API documentation.
 
-## Development
+## Contributing
 
 ### Testing
 
