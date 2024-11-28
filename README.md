@@ -46,7 +46,7 @@ See [readthedocs](https://transloadit.readthedocs.io) for full API documentation
 
 ## Contributing
 
-### Testing
+### Running tests
 
 If you have a global installation of `poetry`, you can run the tests with:
 
