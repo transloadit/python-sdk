@@ -72,4 +72,4 @@ Generate a coverage report with:
 poetry run pytest --cov=transloadit --cov-report=html tests
 ```
 
-Then iew the coverage report locally by opening `htmlcov/index.html` in your browser.
+Then view the coverage report locally by opening `htmlcov/index.html` in your browser.
