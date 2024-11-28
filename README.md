@@ -48,26 +48,28 @@ See [readthedocs](https://transloadit.readthedocs.io) for full API documentation
 
 ### Testing
 
-Run tests with:
+If you have a global installation of `poetry`, you can run the tests with:
 
 ```bash
-poetry run pytest
+poetry run pytest --cov=transloadit tests
 ```
 
-### Code Coverage
+If you can't use a global installation of `poetry`, e.g. when using Nix Home Manager, you can create a Python virtual environment and install Poetry there:
 
-We maintain code coverage to ensure reliability. The current minimum coverage threshold is 65%.
+```bash
+python -m venv .venv && source .venv/bin/activate && pip install poetry && poetry install
+```
 
-Coverage reports are:
+Then to run the tests:
 
-- Generated locally in the `htmlcov` directory
-- Uploaded to Codecov for tracking
-- Enforced in CI (builds will fail if coverage drops below threshold)
-
-View the coverage report locally by opening `htmlcov/index.html` in your browser.
+```bash
+source .venv/bin/activate && poetry run pytest --cov=transloadit tests
+```
 
 Generate a coverage report with:
 
 ```bash
 poetry run pytest --cov=transloadit --cov-report=html tests
 ```
+
+Then iew the coverage report locally by opening `htmlcov/index.html` in your browser.

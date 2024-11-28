@@ -11,7 +11,13 @@ jobs:
         python-version: ['3.9', '3.10', '3.11', '3.12']
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install tsx
+        run: npm install -g tsx
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -43,6 +49,8 @@ jobs:
                           --cov-report=term-missing \
                           --cov-fail-under=65 \
                           tests
+        env:
+          TEST_NODE_PARITY: 1
 
       - name: Test without coverage
         if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.12'
