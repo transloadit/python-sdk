@@ -190,7 +190,7 @@ class Transloadit:
             - template (str): Template slug or template ID
             - input (str): Input value that is provided as ${fields.input} in the template
             - url_params (Optional[dict]): Additional parameters for the URL query string. Values can be strings, numbers, booleans, arrays thereof, or None.
-            - expires_at_ms (Optional[int]): Timestamp in milliseconds since epoch when the signature is no longer valid. Defaults to 1 hour from now.
+            - expires_at_ms (Optional[int]): Timestamp in milliseconds since UNIX epoch when the signature is no longer valid. Defaults to 1 hour from now.
 
         :Returns:
             str: The signed Smart CDN URL
