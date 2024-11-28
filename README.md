@@ -1,4 +1,5 @@
 [![Build status](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/transloadit/python-sdk/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/transloadit/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/transloadit/python-sdk)
 
 # Transloadit python-sdk
 
@@ -64,3 +65,11 @@ Then to run the tests:
 ```bash
 source .venv/bin/activate && poetry run pytest --cov=transloadit tests
 ```
+
+Generate a coverage report with:
+
+```bash
+poetry run pytest --cov=transloadit --cov-report=html tests
+```
+
+Then view the coverage report locally by opening `htmlcov/index.html` in your browser.
