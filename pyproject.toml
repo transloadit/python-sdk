@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytransloadit"
-version = "1.0.1"
+version = "1.0.2"
 description = "A Python Integration for Transloadit's file uploading and encoding service."
 authors = ["Ifedapo Olarewaju"]
 maintainers = ["Florian Kuenzig", "Arnaud Limbourg"]
