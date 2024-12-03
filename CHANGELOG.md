@@ -1,3 +1,7 @@
+### 1.0.2/ 2024-12-03 ###
+
+* Add support for Python 3.13
+
 ### 1.0.1/ 2024-28-11 ###
 * Added SDK support for signed Smart CDN URLs (see https://transloadit.com/docs/topics/signature-authentication/#smart-cdn).
   This is shipped within the new client#get_signed_smart_cdn_url() method.
