@@ -4,12 +4,10 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
+    # Run on all pull requests regardless of source branch
 
 jobs:
   python:
-    # Prevent duplicate runs on PRs from the same repository
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
