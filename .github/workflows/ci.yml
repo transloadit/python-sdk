@@ -1,6 +1,10 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    # Run on all pull requests regardless of source branch
 
 jobs:
   python:
@@ -57,14 +61,25 @@ jobs:
         run: poetry run pytest tests
 
       - name: Upload coverage reports
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        # Only upload coverage if we have a token (skip for Dependabot PRs)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && (github.event_name != 'pull_request' || github.actor != 'dependabot[bot]')
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           flags: unittests
           name: python-sdk
-          fail_ci_if_error: true
+          fail_ci_if_error: false
+
+      - name: Upload coverage reports (tokenless)
+        # Use tokenless upload for Dependabot PRs
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: python-sdk
+          fail_ci_if_error: false
 
       - name: Upload coverage artifacts
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
