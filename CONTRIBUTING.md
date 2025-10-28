@@ -1,3 +1,5 @@
+# Contributings
+
 ## HOWTO Release
 
 This is a Howto guide on the commands to run and files to update in order to publish a new release of the Python SDK to Pypi
@@ -22,7 +24,7 @@ poetry config pypi-token.pypi pypi-XXXXX`````
 ### Release Steps
 
 1. Update the changelog, the version file, and the test file as done in [this commit](https://github.com/transloadit/python-sdk/commit/35789c535bd02086ff8f3a07eda9583d6e676d4d) and push it to main.
-2. Update the version 
+2. Update the version
 ```bash
 # e.g: 0.2.2 -> 0.2.3a0
 poetry version prerelease
