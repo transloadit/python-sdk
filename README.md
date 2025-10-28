@@ -64,6 +64,14 @@ Signature parity tests use `npx transloadit smart_sig` under the hood, matching 
 
 Pass `--python 3.12` (or set `PYTHON_VERSIONS`) to restrict the matrix, or append a custom command after `--`, for example `scripts/test-in-docker.sh -- pytest -k smartcdn`.
 
+To exercise the optional end-to-end upload against a real Transloadit account, provide `TRANSLOADIT_KEY` and `TRANSLOADIT_SECRET` (via environment variables or `.env`) and set `PYTHON_SDK_E2E=1`:
+
+```bash
+PYTHON_SDK_E2E=1 scripts/test-in-docker.sh --python 3.12 -- pytest tests/test_e2e_upload.py
+```
+
+The test uploads `chameleon.jpg`, resizes it, and asserts on the live assembly results. It respects `TRANSLOADIT_HOST` and `TRANSLOADIT_REGION` overrides when present.
+
 If you have a global installation of `poetry`, you can run the tests with:
 
 ```bash

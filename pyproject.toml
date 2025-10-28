@@ -48,6 +48,9 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 addopts = "--cov=transloadit --cov-report=term-missing"
 testpaths = ["tests"]
+markers = [
+    "e2e: marks tests that hit the live Transloadit API"
+]
 
 [tool.coverage.run]
 source = ["transloadit"]
