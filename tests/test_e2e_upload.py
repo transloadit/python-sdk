@@ -17,18 +17,6 @@ pytestmark = [
 ]
 
 
-def _build_service():
-    service = os.getenv("TRANSLOADIT_HOST")
-    if service:
-        return service
-
-    region = os.getenv("TRANSLOADIT_REGION")
-    if region:
-        return f"https://api2-{region}.transloadit.com"
-
-    return None
-
-
 def test_e2e_image_resize():
     key = os.getenv("TRANSLOADIT_KEY")
     secret = os.getenv("TRANSLOADIT_SECRET")
@@ -40,9 +28,7 @@ def test_e2e_image_resize():
     if not fixture_path.exists():
         pytest.skip("chameleon.jpg fixture missing; run from repository root")
 
-    service = _build_service()
-    client_kwargs = {"service": service} if service else {}
-    client = Transloadit(key, secret, **client_kwargs)
+    client = Transloadit(key, secret)
 
     assembly = client.new_assembly()
 

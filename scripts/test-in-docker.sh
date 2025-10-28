@@ -158,7 +158,7 @@ run_for_version() {
     docker_args+=(--env-file "$PWD/.env")
   fi
 
-  local -a passthrough_envs=(TRANSLOADIT_KEY TRANSLOADIT_SECRET TRANSLOADIT_HOST TRANSLOADIT_REGION TRANSLOADIT_TEMPLATE_ID PYTHON_SDK_E2E)
+  local -a passthrough_envs=(TRANSLOADIT_KEY TRANSLOADIT_SECRET TRANSLOADIT_TEMPLATE_ID PYTHON_SDK_E2E)
   for var in "${passthrough_envs[@]}"; do
     if [[ -n "${!var:-}" ]]; then
       docker_args+=(-e "$var=${!var}")

@@ -116,15 +116,6 @@ jobs:
       - name: Install Poetry
         run: pip install --upgrade poetry
 
-      - name: Export optional Transloadit overrides
-        run: |
-          if [ -n "${{ secrets.TRANSLOADIT_HOST }}" ]; then
-            echo "TRANSLOADIT_HOST=${{ secrets.TRANSLOADIT_HOST }}" >> "$GITHUB_ENV"
-          fi
-          if [ -n "${{ secrets.TRANSLOADIT_REGION }}" ]; then
-            echo "TRANSLOADIT_REGION=${{ secrets.TRANSLOADIT_REGION }}" >> "$GITHUB_ENV"
-          fi
-
       - name: Install dependencies
         run: poetry install
 

@@ -70,7 +70,7 @@ To exercise the optional end-to-end upload against a real Transloadit account, p
 PYTHON_SDK_E2E=1 scripts/test-in-docker.sh --python 3.12 -- pytest tests/test_e2e_upload.py
 ```
 
-The test uploads `chameleon.jpg`, resizes it, and asserts on the live assembly results. It respects `TRANSLOADIT_HOST` and `TRANSLOADIT_REGION` overrides when present.
+The test uploads `chameleon.jpg`, resizes it, and asserts on the live assembly results.
 
 If you have a global installation of `poetry`, you can run the tests with:
 
