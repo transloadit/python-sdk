@@ -1,3 +1,9 @@
+### 1.0.3/ 2025-28-10 ###
+* Added a Docker-based test harness (`scripts/test-in-docker.sh`) that mirrors our GitHub Actions matrix locally, including optional Smart CDN parity checks via the official Transloadit CLI.
+* Introduced an opt-in end-to-end image resize test (`tests/test_e2e_upload.py`) plus supporting `chameleon.jpg` fixture; enable by setting `PYTHON_SDK_E2E=1` along with `TRANSLOADIT_KEY`/`TRANSLOADIT_SECRET`.
+* Updated CI to run the E2E upload on Python 3.12 with guarded secrets and to skip coverage for that targeted job.
+* Documented the new workflows and ensured the Transloadit CLI integration replaces the legacy TypeScript helper.
+
 ### 1.0.2/ 2024-03-12 ###
 * Add support for Python 3.13
 
