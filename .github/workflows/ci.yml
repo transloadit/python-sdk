@@ -131,4 +131,4 @@ jobs:
         env:
           TEST_NODE_PARITY: 0
         run: |
-          poetry run pytest tests/test_e2e_upload.py -q --maxfail=1
+          poetry run pytest tests/test_e2e_upload.py -q --maxfail=1 --no-cov
