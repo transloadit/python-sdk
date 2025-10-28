@@ -60,7 +60,7 @@ This script will:
 - install Poetry, Node.js 20, and the Transloadit CLI
 - pass credentials from `.env` (if present) so end-to-end tests can run against real Transloadit accounts
 
-Signature parity tests use `npx transloadit smart_sig` under the hood, matching the reference implementation used by our other SDKs.
+Signature parity tests use `npx transloadit smart_sig` under the hood, matching the reference implementation used by our other SDKs. Our GitHub Actions workflow also runs the E2E upload against Python 3.12 on every push/PR using a dedicated Transloadit test account.
 
 Pass `--python 3.12` (or set `PYTHON_VERSIONS`) to restrict the matrix, or append a custom command after `--`, for example `scripts/test-in-docker.sh -- pytest -k smartcdn`.
 

@@ -89,3 +89,54 @@ jobs:
           path: |
             coverage.json
             htmlcov/
+
+  python-e2e:
+    runs-on: ubuntu-latest
+    needs: python
+    env:
+      PYTHON_SDK_E2E: "1"
+      TRANSLOADIT_KEY: ${{ secrets.TRANSLOADIT_E2E_KEY }}
+      TRANSLOADIT_SECRET: ${{ secrets.TRANSLOADIT_E2E_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Transloadit CLI
+        run: npm install -g transloadit
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: 'pip'
+
+      - name: Install Poetry
+        run: pip install --upgrade poetry
+
+      - name: Export optional Transloadit overrides
+        run: |
+          if [ -n "${{ secrets.TRANSLOADIT_E2E_HOST }}" ]; then
+            echo "TRANSLOADIT_HOST=${{ secrets.TRANSLOADIT_E2E_HOST }}" >> "$GITHUB_ENV"
+          fi
+          if [ -n "${{ secrets.TRANSLOADIT_E2E_REGION }}" ]; then
+            echo "TRANSLOADIT_REGION=${{ secrets.TRANSLOADIT_E2E_REGION }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Ensure credentials present
+        run: |
+          if [ -z "$TRANSLOADIT_KEY" ] || [ -z "$TRANSLOADIT_SECRET" ]; then
+            echo "TRANSLOADIT_E2E_KEY/TRANSLOADIT_E2E_SECRET secrets must be configured for the E2E job" >&2
+            exit 1
+          fi
+
+      - name: Run E2E upload test
+        env:
+          TEST_NODE_PARITY: 0
+        run: |
+          poetry run pytest tests/test_e2e_upload.py -q --maxfail=1

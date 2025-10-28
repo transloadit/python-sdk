@@ -29,7 +29,7 @@ def _build_service():
     return None
 
 
-def test_e2e_image_resize(tmp_path):
+def test_e2e_image_resize():
     key = os.getenv("TRANSLOADIT_KEY")
     secret = os.getenv("TRANSLOADIT_SECRET")
 
@@ -63,6 +63,9 @@ def test_e2e_image_resize(tmp_path):
         response = assembly.create(wait=True, resumable=False)
 
     data = response.data
+    assembly_ssl_url = data.get("assembly_ssl_url") or data.get("assembly_url")
+    assembly_id = data.get("assembly_id")
+    print(f"[python-sdk][e2e] Assembly URL: {assembly_ssl_url} (id={assembly_id})")
     assert data.get("ok") == "ASSEMBLY_COMPLETED", data
 
     uploads = data.get("uploads") or []
@@ -91,3 +94,8 @@ def test_e2e_image_resize(tmp_path):
         height = int(height)
     assert width and height, f"Missing dimensions in result metadata: {meta}"
     assert 0 < width <= 128 and 0 < height <= 128
+    print(
+        "[python-sdk][e2e] Result dimensions: "
+        f"{width}x{height}, ssl_url={ssl_url}, basename={upload_info.get('basename')}, "
+        f"filename={upload_info.get('name')}"
+    )
