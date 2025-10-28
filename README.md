@@ -48,6 +48,22 @@ See [readthedocs](https://transloadit.readthedocs.io) for full API documentation
 
 ### Running tests
 
+You can mirror our GitHub Actions setup locally by running the test matrix inside Docker:
+
+```bash
+scripts/test-in-docker.sh
+```
+
+This script will:
+
+- build images for the Python versions we test in CI (3.9–3.13)
+- install Poetry, Node.js 20, and the Transloadit CLI
+- pass credentials from `.env` (if present) so end-to-end tests can run against real Transloadit accounts
+
+Signature parity tests use `npx transloadit smart_sig` under the hood, matching the reference implementation used by our other SDKs.
+
+Pass `--python 3.12` (or set `PYTHON_VERSIONS`) to restrict the matrix, or append a custom command after `--`, for example `scripts/test-in-docker.sh -- pytest -k smartcdn`.
+
 If you have a global installation of `poetry`, you can run the tests with:
 
 ```bash
