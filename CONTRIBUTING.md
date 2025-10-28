@@ -1,4 +1,4 @@
-# Contributings
+# Contributing
 
 ## HOWTO Release
 
