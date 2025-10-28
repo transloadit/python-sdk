@@ -95,8 +95,8 @@ jobs:
     needs: python
     env:
       PYTHON_SDK_E2E: "1"
-      TRANSLOADIT_KEY: ${{ secrets.TRANSLOADIT_E2E_KEY }}
-      TRANSLOADIT_SECRET: ${{ secrets.TRANSLOADIT_E2E_SECRET }}
+      TRANSLOADIT_KEY: ${{ secrets.TRANSLOADIT_KEY }}
+      TRANSLOADIT_SECRET: ${{ secrets.TRANSLOADIT_SECRET }}
     steps:
       - uses: actions/checkout@v4
 
@@ -118,11 +118,11 @@ jobs:
 
       - name: Export optional Transloadit overrides
         run: |
-          if [ -n "${{ secrets.TRANSLOADIT_E2E_HOST }}" ]; then
-            echo "TRANSLOADIT_HOST=${{ secrets.TRANSLOADIT_E2E_HOST }}" >> "$GITHUB_ENV"
+          if [ -n "${{ secrets.TRANSLOADIT_HOST }}" ]; then
+            echo "TRANSLOADIT_HOST=${{ secrets.TRANSLOADIT_HOST }}" >> "$GITHUB_ENV"
           fi
-          if [ -n "${{ secrets.TRANSLOADIT_E2E_REGION }}" ]; then
-            echo "TRANSLOADIT_REGION=${{ secrets.TRANSLOADIT_E2E_REGION }}" >> "$GITHUB_ENV"
+          if [ -n "${{ secrets.TRANSLOADIT_REGION }}" ]; then
+            echo "TRANSLOADIT_REGION=${{ secrets.TRANSLOADIT_REGION }}" >> "$GITHUB_ENV"
           fi
 
       - name: Install dependencies
@@ -131,7 +131,7 @@ jobs:
       - name: Ensure credentials present
         run: |
           if [ -z "$TRANSLOADIT_KEY" ] || [ -z "$TRANSLOADIT_SECRET" ]; then
-            echo "TRANSLOADIT_E2E_KEY/TRANSLOADIT_E2E_SECRET secrets must be configured for the E2E job" >&2
+            echo "TRANSLOADIT_KEY and TRANSLOADIT_SECRET secrets must be configured for the E2E job" >&2
             exit 1
           fi
 
