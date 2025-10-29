@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytransloadit"
-version = "1.0.2"
+version = "1.0.3"
 description = "A Python Integration for Transloadit's file uploading and encoding service."
 authors = ["Ifedapo Olarewaju"]
 maintainers = ["Florian Kuenzig", "Arnaud Limbourg"]
@@ -48,6 +48,9 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 addopts = "--cov=transloadit --cov-report=term-missing"
 testpaths = ["tests"]
+markers = [
+    "e2e: marks tests that hit the live Transloadit API"
+]
 
 [tool.coverage.run]
 source = ["transloadit"]

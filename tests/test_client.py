@@ -5,7 +5,6 @@ import os
 import platform
 import subprocess
 import time
-from pathlib import Path
 
 import requests_mock
 from six.moves import urllib
@@ -24,23 +23,29 @@ def get_expected_url(params):
         print('Skipping Node.js parity testing on Windows')
         return None
 
-    # Check for tsx before trying to use it
-    tsx_path = subprocess.run(['which', 'tsx'], capture_output=True)
-    if tsx_path.returncode != 0:
-        raise RuntimeError('tsx command not found. Please install it with: npm install -g tsx')
+    # Check for npx before trying to use the CLI
+    npx_path = subprocess.run(['which', 'npx'], capture_output=True)
+    if npx_path.returncode != 0:
+        raise RuntimeError('npx command not found. Please install Node.js (>=20) to use the Transloadit CLI.')
 
-    script_path = Path(__file__).parent / 'node-smartcdn-sig.ts'
-    json_input = json.dumps(params)
+    cli_params = {k: v for k, v in params.items() if k not in {'auth_key', 'auth_secret'}}
+    json_input = json.dumps(cli_params)
+    env = os.environ.copy()
+    env.update({
+        'TRANSLOADIT_KEY': params.get('auth_key', ''),
+        'TRANSLOADIT_SECRET': params.get('auth_secret', '')
+    })
 
     result = subprocess.run(
-        ['tsx', str(script_path)],
+        ['npx', '--yes', 'transloadit', 'smart_sig'],
         input=json_input,
         capture_output=True,
-        text=True
+        text=True,
+        env=env
     )
 
     if result.returncode != 0:
-        raise RuntimeError(f'Node script failed: {result.stderr}')
+        raise RuntimeError(f'Transloadit CLI smart_sig failed: {result.stderr}')
 
     return result.stdout.strip()
 
