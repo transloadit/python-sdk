@@ -12,14 +12,12 @@ usage() {
 Usage: scripts/notify-registry.sh [options]
 
 Options:
-  --repository <pypi|test-pypi>   Publish to the chosen repository (default: pypi)
-  --dry-run                       Build the package but skip publishing
-  -h, --help                      Show this help text
+  --dry-run         Build the package but skip publishing to PyPI
+  -h, --help        Show this help text
 
 Environment:
-  PYPI_TOKEN          API token with upload rights for pypi.org (required for --repository pypi)
-  PYPI_TEST_TOKEN     API token with upload rights for test.pypi.org (required for --repository test-pypi)
-  These variables can optionally be defined in .env
+  PYPI_TOKEN   API token with upload rights for pypi.org. This variable can
+               optionally be defined in .env
 EOF
 }
 
@@ -93,9 +91,6 @@ run_outside_container() {
   if [[ -n "${PYPI_TOKEN:-}" ]]; then
     docker_args+=(-e "PYPI_TOKEN=${PYPI_TOKEN}")
   fi
-  if [[ -n "${PYPI_TEST_TOKEN:-}" ]]; then
-    docker_args+=(-e "PYPI_TEST_TOKEN=${PYPI_TEST_TOKEN}")
-  fi
 
   exec docker run "${docker_args[@]}" "$IMAGE_NAME" bash -lc "set -euo pipefail; scripts/notify-registry.sh --inside-container \"$@\""
 }
@@ -140,19 +135,10 @@ verify_versions_consistent() {
 }
 
 publish_inside_container() {
-  local repository="pypi"
   local dry_run=0
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --repository)
-        if [[ $# -lt 2 ]]; then
-          err "Missing value for --repository"
-          exit 1
-        fi
-        repository=$2
-        shift 2
-        ;;
       --dry-run)
         dry_run=1
         shift
@@ -172,30 +158,12 @@ publish_inside_container() {
     esac
   done
 
-  case "$repository" in
-    pypi|test-pypi) ;;
-    *)
-      err "Invalid repository '${repository}'. Expected 'pypi' or 'test-pypi'."
-      exit 1
-      ;;
-  esac
-
-  if [[ "$repository" == "pypi" ]]; then
-    load_env_var "PYPI_TOKEN"
-    if [[ -z "${PYPI_TOKEN:-}" ]]; then
-      err "PYPI_TOKEN is not set. Export it or add it to .env before publishing."
-      exit 1
-    fi
-    export POETRY_PYPI_TOKEN_PYPI="$PYPI_TOKEN"
-  else
-    load_env_var "PYPI_TEST_TOKEN"
-    if [[ -z "${PYPI_TEST_TOKEN:-}" ]]; then
-      err "PYPI_TEST_TOKEN is not set. Export it or add it to .env before publishing to test-pypi."
-      exit 1
-    fi
-    export POETRY_PYPI_TOKEN_TEST_PYPI="$PYPI_TEST_TOKEN"
-    poetry config repositories.test-pypi https://test.pypi.org/legacy/ >/dev/null
+  load_env_var "PYPI_TOKEN"
+  if [[ -z "${PYPI_TOKEN:-}" ]]; then
+    err "PYPI_TOKEN is not set. Export it or add it to .env before publishing."
+    exit 1
   fi
+  export POETRY_PYPI_TOKEN_PYPI="$PYPI_TOKEN"
 
   verify_repo_state
   verify_versions_consistent
@@ -208,13 +176,8 @@ publish_inside_container() {
     exit 0
   fi
 
-  if [[ "$repository" == "pypi" ]]; then
-    poetry publish --no-interaction --no-ansi
-    err "Published package to pypi.org."
-  else
-    poetry publish --no-interaction --no-ansi -r test-pypi
-    err "Published package to test.pypi.org."
-  fi
+  poetry publish --no-interaction --no-ansi
+  err "Published package to pypi.org."
 }
 
 main() {

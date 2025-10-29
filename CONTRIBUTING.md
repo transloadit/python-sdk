@@ -43,14 +43,6 @@ Publish to the real registry:
 PYPI_TOKEN=... scripts/notify-registry.sh
 ```
 
-Run a dry‑run against TestPyPI first (optional):
-
-```bash
-PYPI_TEST_TOKEN=... scripts/notify-registry.sh --repository test-pypi --dry-run
-# When satisfied:
-PYPI_TEST_TOKEN=... scripts/notify-registry.sh --repository test-pypi
-```
-
 ### 4. Announce the Release
 
 1. Draft a GitHub release for the new tag and paste the changelog entry.
