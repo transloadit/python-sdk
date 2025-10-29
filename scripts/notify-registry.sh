@@ -92,7 +92,11 @@ run_outside_container() {
     docker_args+=(-e "PYPI_TOKEN=${PYPI_TOKEN}")
   fi
 
-  exec docker run "${docker_args[@]}" "$IMAGE_NAME" bash -lc "set -euo pipefail; scripts/notify-registry.sh --inside-container \"$@\""
+  if [[ $# -gt 0 ]]; then
+    exec docker run "${docker_args[@]}" "$IMAGE_NAME" scripts/notify-registry.sh --inside-container "$@"
+  else
+    exec docker run "${docker_args[@]}" "$IMAGE_NAME" scripts/notify-registry.sh --inside-container
+  fi
 }
 
 load_env_var() {
@@ -139,6 +143,9 @@ publish_inside_container() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --inside-container)
+        shift
+        ;;
       --dry-run)
         dry_run=1
         shift
