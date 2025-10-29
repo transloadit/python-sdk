@@ -1,54 +1,59 @@
 # Contributing
 
-## HOWTO Release
+## Release Checklist
 
-This is a Howto guide on the commands to run and files to update in order to publish a new release of the Python SDK to Pypi
+Use this checklist whenever you cut a new version of the Python SDK.
 
-### Prerequisite
+### Prerequisites
 
-Poetry will handle things for us. You need to configure poetry with your pypi token for the publishing process to work.
+- Docker installed (our helper scripts build and run inside the project Docker image).
+- Writable Transloadit GitHub repository access.
+- A PyPI API token with upload rights to `pytransloadit` (`PYPI_TOKEN`). Store it in your shell or `.env`.
+- Optionally, a TestPyPI token (`PYPI_TEST_TOKEN`) if you want to dry‑run the release before pushing to the real registry.
 
-Enable testing publishing on pypi test index.
+### 1. Prepare the Release Commit
 
-```bash
-poetry config repositories.test-pypi https://test.pypi.org/legacy/
-poetry config pypi-token.test-pypi pypi-XXXXX
-```
+1. Update the version in all synced files:
+   - `pyproject.toml`
+   - `transloadit/__init__.py`
+   - `tests/test_request.py` (the `Transloadit-Client` header)
+2. Add a matching entry to `CHANGELOG.md`.
+3. Run the test matrix (add `PYTHON_SDK_E2E=1` if you want to exercise the live upload):
+   ```bash
+   ./scripts/test-in-docker.sh --python 3.12
+   ```
+4. Commit the changes with a message such as `Prepare 1.0.3 release`.
 
-To setup your token to publish to pypi.
+### 2. Tag the Release
 
-```bash
-poetry config pypi-token.pypi pypi-XXXXX`````
-```
-
-### Release Steps
-
-1. Update the changelog, the version file, and the test file as done in [this commit](https://github.com/transloadit/python-sdk/commit/35789c535bd02086ff8f3a07eda9583d6e676d4d) and push it to main.
-2. Update the version
-```bash
-# e.g: 0.2.2 -> 0.2.3a0
-poetry version prerelease
-# or the following for, e.g.: 0.2.3
-poetry version patch
-```
-3. Publish to Pypi
-
-Pypi test index
+After landing the release commit on `main` (or the branch you will tag), create and push an annotated tag:
 
 ```bash
-poetry build
-poetry publish -r test-pypi
+git tag -a v1.0.3 -m "v1.0.3"
+git push origin main --tags
 ```
 
-To publish to pypi
+### 3. Publish to PyPI
+
+The `scripts/notify-registry.sh` helper publishes from inside our Docker image and performs the usual safety checks (clean git tree, version consistency, changelog entry). It looks for tokens in the environment or `.env`.
+
+Publish to the real registry:
+
 ```bash
-poetry publish
+PYPI_TOKEN=... scripts/notify-registry.sh
 ```
 
-4. Now that release has been published on Pypi, please head to GitHub to [draft a new tag release](https://github.com/transloadit/python-sdk/releases). Point this tag release to the latest commit pushed on step 1 above. Once you're done drafting the release, go ahead to publish it.
+Run a dry‑run against TestPyPI first (optional):
 
-If all the steps above have been followed without errors, then you've successfully published a release. 🎉
+```bash
+PYPI_TEST_TOKEN=... scripts/notify-registry.sh --repository test-pypi --dry-run
+# When satisfied:
+PYPI_TEST_TOKEN=... scripts/notify-registry.sh --repository test-pypi
+```
 
----
+### 4. Announce the Release
 
-Further reading for Transloadians: https://github.com/transloadit/team-internals/blob/HEAD/_howtos/2020-12-14-maintain-python-sdk.md
+1. Draft a GitHub release for the new tag and paste the changelog entry.
+2. Confirm that the [Read the Docs build](https://transloadit.readthedocs.io/en/latest/) completes (it is triggered when you publish the GitHub release).
+
+That’s it—PyPI and the documentation are now up to date. For additional background see the internal guide: <https://github.com/transloadit/team-internals/blob/HEAD/_howtos/2020-12-14-maintain-python-sdk.md>.

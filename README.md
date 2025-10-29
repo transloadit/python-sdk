@@ -97,3 +97,7 @@ poetry run pytest --cov=transloadit --cov-report=html tests
 ```
 
 Then view the coverage report locally by opening `htmlcov/index.html` in your browser.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local development, testing, and release instructions.
