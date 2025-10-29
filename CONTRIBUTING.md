@@ -14,7 +14,7 @@
    ```bash
    ./scripts/test-in-docker.sh --python 3.12
    ```
-4. Commit on `main`: `git commit -am "Prepare 1.0.3 release"`
+4. Commit on `main`: `git commit -am "Release v1.0.3"`
 5. Tag & push:
    ```bash
    git tag v1.0.3
@@ -26,9 +26,16 @@
    ```
 7. Publish the GitHub release (pulls notes from the changelog section):
    ```bash
-   gh release create v1.0.3 \
-     --title "v1.0.3" \
-     --notes "$(ruby -e 'puts File.read(\"CHANGELOG.md\")[/^### 1\\.0\\.3/..(/^### / || -1)]')"
+   NOTES=$(python - <<'PY'
+import pathlib, re
+version = "1.0.3"
+text = pathlib.Path("CHANGELOG.md").read_text()
+pattern = rf"^### {re.escape(version)}.*?(?=^### |\Z)"
+match = re.search(pattern, text, flags=re.MULTILINE | re.DOTALL)
+print(match.group(0).strip() if match else "")
+PY
+)
+   gh release create v1.0.3 --title "v1.0.3" --notes "$NOTES"
    ```
 8. Verify the Read the Docs build kicked off: <https://transloadit.readthedocs.io/en/latest/>
 
