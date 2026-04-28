@@ -13,9 +13,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+    env:
+      POETRY_VERSION: "1.8.5"
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - uses: actions/setup-node@v4
         with:
@@ -30,15 +34,8 @@ jobs:
           architecture: x64
           cache: 'pip'
 
-      - name: Install Poetry (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
-          echo "$HOME\AppData\Roaming\Python\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Install Poetry (Unix)
-        if: runner.os != 'Windows'
-        run: pip install --upgrade poetry
+      - name: Install Poetry
+        run: python -m pip install --upgrade "poetry==${{ env.POETRY_VERSION }}"
 
       - name: Install Dependencies
         run: poetry install
@@ -95,11 +92,14 @@ jobs:
     needs: python
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     env:
+      POETRY_VERSION: "1.8.5"
       PYTHON_SDK_E2E: "1"
       TRANSLOADIT_KEY: ${{ secrets.TRANSLOADIT_KEY }}
       TRANSLOADIT_SECRET: ${{ secrets.TRANSLOADIT_SECRET }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - uses: actions/setup-node@v4
         with:
@@ -115,7 +115,7 @@ jobs:
           cache: 'pip'
 
       - name: Install Poetry
-        run: pip install --upgrade poetry
+        run: python -m pip install --upgrade "poetry==${{ env.POETRY_VERSION }}"
 
       - name: Install dependencies
         run: poetry install
