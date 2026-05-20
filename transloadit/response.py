@@ -1,4 +1,4 @@
-from six import wraps
+from functools import wraps
 
 
 class Response:

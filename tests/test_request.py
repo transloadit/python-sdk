@@ -1,7 +1,7 @@
 import unittest
+import urllib.parse
 
 import requests_mock
-from six.moves import urllib
 
 from . import request_body_matcher
 from transloadit.client import Transloadit
@@ -19,7 +19,7 @@ class RequestTest(unittest.TestCase):
         mock.get(
             url,
             text='{"ok": "it works"}',
-            request_headers={"Transloadit-Client": "python-sdk:1.0.3"},
+            request_headers={"Transloadit-Client": "python-sdk:1.0.4"},
         )
 
         response = self.request.get("/foo")
