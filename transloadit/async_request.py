@@ -39,8 +39,17 @@ class AsyncRequest:
         if self._session is not None and not self._session.closed and self._owns_session:
             await self._session.close()
 
+    def _timeout(self):
+        return aiohttp.ClientTimeout(total=None, sock_connect=TIMEOUT, sock_read=TIMEOUT)
+
     def _normalize_payload(self, data):
         return {key: str(value) for key, value in data.items()}
+
+    async def _read_response_data(self, response):
+        try:
+            return await response.json(content_type=None)
+        except (aiohttp.ContentTypeError, json.JSONDecodeError, UnicodeDecodeError):
+            return await response.text()
 
     async def get(self, path, params=None):
         """
@@ -51,10 +60,10 @@ class AsyncRequest:
             self._get_full_url(path),
             params=self._to_payload(params),
             headers=self.HEADERS,
-            timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+            timeout=self._timeout(),
         ) as response:
             return Response(
-                data=await response.json(),
+                data=await self._read_response_data(response),
                 status_code=response.status,
                 headers=response.headers,
             )
@@ -84,10 +93,10 @@ class AsyncRequest:
             self._get_full_url(path),
             data=payload,
             headers=self.HEADERS,
-            timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+            timeout=self._timeout(),
         ) as response:
             return Response(
-                data=await response.json(),
+                data=await self._read_response_data(response),
                 status_code=response.status,
                 headers=response.headers,
             )
@@ -102,10 +111,10 @@ class AsyncRequest:
             self._get_full_url(path),
             data=data,
             headers=self.HEADERS,
-            timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+            timeout=self._timeout(),
         ) as response:
             return Response(
-                data=await response.json(),
+                data=await self._read_response_data(response),
                 status_code=response.status,
                 headers=response.headers,
             )
@@ -120,10 +129,10 @@ class AsyncRequest:
             self._get_full_url(path),
             data=data,
             headers=self.HEADERS,
-            timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+            timeout=self._timeout(),
         ) as response:
             return Response(
-                data=await response.json(),
+                data=await self._read_response_data(response),
                 status_code=response.status,
                 headers=response.headers,
             )

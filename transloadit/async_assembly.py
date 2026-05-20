@@ -41,13 +41,33 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         """
         self.files.pop(field_name)
 
+    def _snapshot_file_positions(self):
+        positions = {}
+        for key, file_stream in self.files.items():
+            try:
+                positions[key] = file_stream.tell()
+            except (AttributeError, OSError, ValueError):
+                continue
+        return positions
+
+    def _rewind_files(self, positions):
+        for key, position in positions.items():
+            file_stream = self.files.get(key)
+            if file_stream is None:
+                continue
+            try:
+                file_stream.seek(position)
+            except (AttributeError, OSError, ValueError):
+                continue
+
     def _do_tus_upload(self, assembly_url, tus_url, retries):
         tus_client = tus.TusClient(tus_url)
         for key, file_stream in self.files.items():
+            filename = getattr(file_stream, "name", key)
             metadata = {
                 "assembly_url": assembly_url,
                 "fieldname": key,
-                "filename": os.path.basename(file_stream.name),
+                "filename": os.path.basename(filename) or key,
             }
             tus_client.uploader(
                 file_stream=file_stream,
@@ -64,11 +84,16 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         Save/Submit the assembly for processing.
         """
         data = self.get_options()
+        file_positions = self._snapshot_file_positions()
         if resumable:
             extra_data = {"tus_num_expected_upload_files": len(self.files)}
             response = await self.transloadit.request.post(
                 "/assemblies", extra_data=extra_data, data=data
             )
+            if self._rate_limit_reached(response) and retries:
+                await asyncio.sleep(response.data.get("info", {}).get("retryIn", 1))
+                self._rewind_files(file_positions)
+                return await self.create(wait, resumable, retries - 1)
             await self._do_tus_upload_async(
                 response.data.get("assembly_ssl_url"),
                 response.data.get("tus_url"),
@@ -78,17 +103,24 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
             response = await self.transloadit.request.post(
                 "/assemblies", data=data, files=self.files
             )
+            if self._rate_limit_reached(response) and retries:
+                await asyncio.sleep(response.data.get("info", {}).get("retryIn", 1))
+                self._rewind_files(file_positions)
+                return await self.create(wait, resumable, retries - 1)
 
         if wait:
+            assembly_url = response.data.get("assembly_ssl_url")
             while not self._assembly_finished(response):
                 sleep_time = response.data.get("info", {}).get("retryIn", 1)
                 await asyncio.sleep(sleep_time)
                 response = await self.transloadit.get_assembly(
-                    assembly_url=response.data.get("assembly_ssl_url")
+                    assembly_url=assembly_url or response.data.get("assembly_ssl_url")
                 )
+                assembly_url = response.data.get("assembly_ssl_url") or assembly_url
 
         if self._rate_limit_reached(response) and retries:
             await asyncio.sleep(response.data.get("info", {}).get("retryIn", 1))
+            self._rewind_files(file_positions)
             return await self.create(wait, resumable, retries - 1)
 
         return response

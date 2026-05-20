@@ -27,6 +27,8 @@ class Response:
 
     def __init__(self, response=None, data=_MISSING, status_code=_MISSING, headers=_MISSING):
         self._response = response
+        if data is _MISSING and response is not None:
+            data = response.json()
         self._data = data
         self._status_code = status_code
         self._headers = headers
@@ -38,6 +40,10 @@ class Response:
                 return None
             self._data = self._response.json()
         return self._data
+
+    @data.setter
+    def data(self, value):
+        self._data = value
 
     @property
     def status_code(self):
