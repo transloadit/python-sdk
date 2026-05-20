@@ -91,7 +91,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
 
         while True:
             if resumable:
-                extra_data = {"tus_num_expected_upload_files": len(self.files)} if self.files else None
+                extra_data = {"tus_num_expected_upload_files": len(self.files)}
                 response = await self.transloadit.request.post(
                     "/assemblies", extra_data=extra_data, data=data
                 )
@@ -148,14 +148,13 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                     sleep_time = poll_data.get("info", {}).get("retryIn", 1)
                     await asyncio.sleep(sleep_time)
                     poll_response = await self.transloadit.get_assembly(
-                        assembly_url=assembly_url or poll_data.get("assembly_ssl_url")
+                        assembly_url=assembly_url
                     )
                     poll_data = self._response_data(poll_response)
                     if poll_data is None:
                         if poll_response.status_code >= 400:
                             raise RuntimeError(f"Unexpected non-JSON response ({poll_response.status_code}).")
                         return poll_response
-                    assembly_url = poll_data.get("assembly_ssl_url") or assembly_url
 
                 return poll_response
 

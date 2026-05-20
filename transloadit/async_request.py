@@ -96,7 +96,10 @@ class AsyncRequest:
         try:
             return await response.json(content_type=None)
         except (aiohttp.ContentTypeError, json.JSONDecodeError, UnicodeDecodeError):
-            return await response.text()
+            try:
+                return await response.text()
+            except UnicodeDecodeError:
+                return await response.read()
 
     async def get(self, path, params=None):
         """

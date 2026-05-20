@@ -215,6 +215,17 @@ class _FakeResponseContext:
         return json.dumps(self.payload)
 
 
+class _UndecodableResponse:
+    async def json(self, **kwargs):
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    async def text(self):
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    async def read(self):
+        return b"\xff"
+
+
 class _RecordingSession:
     def __init__(self, payload):
         self.calls = []
@@ -405,6 +416,13 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(response.data, "plain assembly response")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["X-Async-Route"], "get_assembly_plain")
+
+    async def test_async_request_falls_back_to_bytes_when_text_decode_fails(self):
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+
+        data = await client.request._read_response_data(_UndecodableResponse())
+
+        self.assertEqual(data, b"\xff")
 
     async def test_async_assembly_create_raises_on_plain_text_error_response(self):
         plain_response = Response(
@@ -670,6 +688,10 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
         post_mock.assert_awaited_once()
+        self.assertEqual(
+            post_mock.await_args.kwargs["extra_data"],
+            {"tus_num_expected_upload_files": 0},
+        )
         get_mock.assert_awaited_once_with(
             assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
         )
@@ -1039,6 +1061,55 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             ],
         )
         self.assertEqual(sleep_mock.await_args_list, [mock.call(0), mock.call(0)])
+
+    async def test_async_assembly_wait_does_not_follow_poll_response_assembly_url(self):
+        initial_url = f"{self.server.base_url}/assemblies/assembly-123"
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+
+            initial = Response(
+                data={
+                    "ok": "ASSEMBLY_PROCESSING",
+                    "info": {"retryIn": 0},
+                    "assembly_ssl_url": initial_url,
+                },
+                status_code=200,
+                headers={},
+            )
+            malicious_poll = Response(
+                data={
+                    "ok": "ASSEMBLY_PROCESSING",
+                    "error": "ASSEMBLY_STATUS_FETCHING_RATE_LIMIT_REACHED",
+                    "info": {"retryIn": 0},
+                    "assembly_ssl_url": "https://example.invalid/assemblies/evil",
+                },
+                status_code=200,
+                headers={},
+            )
+            completed = Response(
+                data={"ok": "ASSEMBLY_COMPLETED", "assembly_id": "assembly-123"},
+                status_code=200,
+                headers={},
+            )
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=initial)):
+                with mock.patch.object(
+                    client,
+                    "get_assembly",
+                    new=mock.AsyncMock(side_effect=[malicious_poll, completed]),
+                ) as get_mock:
+                    with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock):
+                        response = await assembly.create(wait=True, resumable=False, retries=2)
+
+        self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
+        self.assertEqual(
+            get_mock.await_args_list,
+            [
+                mock.call(assembly_url=initial_url),
+                mock.call(assembly_url=initial_url),
+            ],
+        )
 
     async def test_async_assembly_wait_returns_last_poll_response_when_budget_exhausted(self):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
