@@ -43,12 +43,13 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
 
     def _snapshot_file_positions(self):
         positions = {}
+        missing = []
         for key, file_stream in self.files.items():
             try:
                 positions[key] = file_stream.tell()
             except (AttributeError, OSError, ValueError):
-                continue
-        return positions
+                missing.append(key)
+        return positions, missing
 
     def _rewind_files(self, positions):
         for key, position in positions.items():
@@ -84,7 +85,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         Save/Submit the assembly for processing.
         """
         data = self.get_options()
-        file_positions = self._snapshot_file_positions()
+        file_positions, missing_file_positions = self._snapshot_file_positions()
         tus_retries = retries
         poll_retries = retries
 
@@ -107,6 +108,12 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
 
             if self._rate_limit_reached(response_data):
                 if retries:
+                    if not resumable and missing_file_positions:
+                        missing = ", ".join(repr(key) for key in missing_file_positions)
+                        raise RuntimeError(
+                            "Cannot retry non-resumable upload because these file streams are not seekable: "
+                            f"{missing}"
+                        )
                     await asyncio.sleep(response_data.get("info", {}).get("retryIn", 1))
                     if not resumable:
                         self._rewind_files(file_positions)
@@ -170,4 +177,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         return is_aborted or is_canceled or is_completed or (is_failed and not (is_fetch_rate_limit or is_submit_rate_limit))
 
     def _rate_limit_reached(self, response_data):
-        return response_data.get("error") == "RATE_LIMIT_REACHED"
+        return response_data.get("error") in {
+            "RATE_LIMIT_REACHED",
+            "ASSEMBLY_STATUS_FETCHING_RATE_LIMIT_REACHED",
+        }

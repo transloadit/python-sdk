@@ -292,8 +292,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             self.assertEqual(response.data["ok"], "TEMPLATE_CREATED")
             self.assertEqual(response.data["template_name"], "foo")
 
-        self.assertIsNotNone(client.request.session)
-        self.assertTrue(client.request.session.closed)
+        self.assertIsNone(client.request.session)
 
         self.assertGreaterEqual(len(self.server.requests), 7)
         first_request = self.server.requests[0]
@@ -365,10 +364,25 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         await client.close()
         self.assertTrue(first_session.closed)
+        self.assertIsNone(client.request.session)
 
         second_session = await client.request._ensure_session()
         self.assertIsNot(first_session, second_session)
         self.assertFalse(second_session.closed)
+
+        await client.close()
+
+    async def test_async_client_reopens_owned_session_when_session_is_closed(self):
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+
+        first_session = await client.request._ensure_session()
+        self.assertFalse(first_session.closed)
+
+        await first_session.close()
+        reopened_session = await client.request._ensure_session()
+
+        self.assertIsNot(first_session, reopened_session)
+        self.assertFalse(reopened_session.closed)
 
         await client.close()
 
@@ -408,6 +422,22 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         post_mock.assert_awaited_once()
 
+    async def test_async_assembly_create_returns_plain_text_success_response(self):
+        plain_response = Response(
+            data="plain assembly response",
+            status_code=200,
+            headers={"X-Async-Route": "plain"},
+        )
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=plain_response)) as post_mock:
+                response = await assembly.create(wait=False, resumable=False)
+
+        self.assertIs(response, plain_response)
+        post_mock.assert_awaited_once()
+
     async def test_async_assembly_wait_raises_on_plain_text_poll_response(self):
         initial_response = Response(
             data={
@@ -433,6 +463,37 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                         with self.assertRaises(RuntimeError):
                             await assembly.create(wait=True, resumable=False)
 
+        post_mock.assert_awaited_once()
+        get_mock.assert_awaited_once_with(
+            assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
+        )
+        sleep_mock.assert_awaited_once_with(0)
+
+    async def test_async_assembly_wait_returns_plain_text_poll_response(self):
+        initial_response = Response(
+            data={
+                "ok": "ASSEMBLY_PROCESSING",
+                "info": {"retryIn": 0},
+                "assembly_ssl_url": f"{self.server.base_url}/assemblies/assembly-123",
+            },
+            status_code=200,
+            headers={"X-Async-Route": "initial"},
+        )
+        plain_response = Response(
+            data="plain assembly response",
+            status_code=200,
+            headers={"X-Async-Route": "plain"},
+        )
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=initial_response)) as post_mock:
+                with mock.patch.object(client, "get_assembly", new=mock.AsyncMock(return_value=plain_response)) as get_mock:
+                    with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
+                        response = await assembly.create(wait=True, resumable=False)
+
+        self.assertIs(response, plain_response)
         post_mock.assert_awaited_once()
         get_mock.assert_awaited_once_with(
             assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
@@ -633,7 +694,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             assembly = client.new_assembly()
             upload = io.BytesIO(b"payload")
-            upload.name = "payload.bin"
+            upload.name = b"payload.bin"
             assembly.add_file(upload)
 
             rate_limited = Response(
@@ -729,6 +790,38 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(to_thread_mock.await_count, 1)
         self.assertEqual(calls[0], ("client", f"{self.server.base_url}/uploads"))
         self.assertEqual(calls[1][0], "uploader")
+
+    async def test_async_assembly_non_resumable_rate_limit_raises_when_stream_cannot_be_snapshotted(self):
+        class _NonSeekableStream(io.BytesIO):
+            def tell(self):
+                raise OSError("tell failed")
+
+        reads = []
+
+        async def fake_post(path, data=None, extra_data=None, files=None):
+            file_stream = files["file"]
+            reads.append(file_stream.read())
+            return Response(
+                data={
+                    "error": "RATE_LIMIT_REACHED",
+                    "info": {"retryIn": 0},
+                },
+                status_code=200,
+                headers={},
+            )
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+            assembly.add_file(_NonSeekableStream(b"payload"))
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(side_effect=fake_post)) as post_mock:
+                with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
+                    with self.assertRaises(RuntimeError):
+                        await assembly.create(resumable=False, retries=1)
+
+        self.assertEqual(reads, [b"payload"])
+        post_mock.assert_awaited_once()
+        sleep_mock.assert_not_awaited()
 
     async def test_async_assembly_resumable_rate_limit_returns_response_without_upload_when_retries_exhausted(self):
         calls = []
@@ -1169,9 +1262,10 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         first.read(1)
         second.read(2)
-        positions = assembly._snapshot_file_positions()
+        positions, missing = assembly._snapshot_file_positions()
         self.assertEqual(positions["file"], 1)
         self.assertEqual(positions["file_1"], 2)
+        self.assertEqual(missing, [])
 
         first.read(1)
         second.read(1)
@@ -1181,8 +1275,9 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         broken = _BrokenStream()
         assembly.files["broken"] = broken
-        positions = assembly._snapshot_file_positions()
+        positions, missing = assembly._snapshot_file_positions()
         self.assertNotIn("broken", positions)
+        self.assertEqual(missing, ["broken"])
 
         assembly._rewind_files({"missing": 4})
         with self.assertRaises(RuntimeError):

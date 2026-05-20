@@ -5,6 +5,7 @@ import copy
 import hashlib
 import hmac
 import json
+from types import MappingProxyType
 from datetime import datetime, timedelta, timezone
 
 import aiohttp
@@ -17,7 +18,10 @@ TIMEOUT = 60
 
 def _get_upload_filename(file_stream, fallback):
     name = getattr(file_stream, "name", None)
-    if isinstance(name, (str, bytes, os.PathLike)):
+    if isinstance(name, (bytes, os.PathLike)):
+        name = os.fsdecode(name)
+
+    if isinstance(name, str):
         filename = os.path.basename(name)
         if filename:
             return filename
@@ -29,13 +33,13 @@ class AsyncRequest:
     Transloadit tailored asynchronous HTTP request object.
     """
 
-    HEADERS = {"Transloadit-Client": "python-sdk:" + __version__}
+    HEADERS = MappingProxyType({"Transloadit-Client": "python-sdk:" + __version__})
 
     def __init__(self, transloadit, session=None):
         self.transloadit = transloadit
         self._session = session
         self._owns_session = session is None
-        self._session_lock = asyncio.Lock()
+        self._session_lock = None
 
     @property
     def session(self):
@@ -44,8 +48,16 @@ class AsyncRequest:
     def _headers(self):
         return dict(self.HEADERS)
 
+    def _get_session_lock(self):
+        if self._session_lock is None:
+            # Create the lock lazily so the client can be instantiated before the loop starts.
+            self._session_lock = asyncio.Lock()
+        return self._session_lock
+
     async def _ensure_session(self):
-        async with self._session_lock:
+        if self._session is not None and not self._session.closed:
+            return self._session
+        async with self._get_session_lock():
             if self._session is None:
                 self._session = aiohttp.ClientSession()
                 self._owns_session = True
@@ -57,9 +69,10 @@ class AsyncRequest:
             return self._session
 
     async def aclose(self):
-        async with self._session_lock:
+        async with self._get_session_lock():
             if self._session is not None and not self._session.closed and self._owns_session:
                 await self._session.close()
+                self._session = None
 
     def _timeout(self, files=False):
         return aiohttp.ClientTimeout(

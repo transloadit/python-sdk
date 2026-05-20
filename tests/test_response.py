@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 
-from transloadit.response import Response
+from transloadit.response import Response, _MISSING
 
 
 class ResponseTest(unittest.TestCase):
@@ -20,6 +20,19 @@ class ResponseTest(unittest.TestCase):
         self.assertEqual(response.data, {"ok": "changed"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers, {"X-Test": "1"})
+
+    def test_response_lazily_rehydrates_data_when_missing(self):
+        raw = mock.Mock()
+        raw.json.return_value = {"ok": "lazy"}
+        raw.status_code = 204
+        raw.headers = {"X-Test": "1"}
+
+        response = Response()
+        response._response = raw
+        response._data = _MISSING
+
+        self.assertEqual(response.data, {"ok": "lazy"})
+        raw.json.assert_called_once()
 
     def test_response_supports_async_preloaded_values_and_empty_default(self):
         empty = Response()
