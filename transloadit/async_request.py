@@ -1,4 +1,5 @@
 import asyncio
+import mimetypes
 import os
 import copy
 import hashlib
@@ -12,6 +13,15 @@ from . import __version__
 from .response import Response
 
 TIMEOUT = 60
+
+
+def _get_upload_filename(file_stream, fallback):
+    name = getattr(file_stream, "name", None)
+    if isinstance(name, (str, bytes, os.PathLike)):
+        filename = os.path.basename(name)
+        if filename:
+            return filename
+    return fallback
 
 
 class AsyncRequest:
@@ -96,8 +106,9 @@ class AsyncRequest:
                 form.add_field(key, value)
 
             for key, file_stream in files.items():
-                filename = os.path.basename(getattr(file_stream, "name", None) or key) or key
-                form.add_field(key, file_stream, filename=filename)
+                filename = _get_upload_filename(file_stream, key)
+                content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+                form.add_field(key, file_stream, filename=filename, content_type=content_type)
             payload = form
         else:
             payload = self._normalize_payload(data)

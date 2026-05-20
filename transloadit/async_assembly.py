@@ -1,9 +1,9 @@
 import asyncio
-import os
 
 from tusclient import client as tus
 
 from . import optionbuilder
+from .async_request import _get_upload_filename
 
 
 class AsyncAssembly(optionbuilder.OptionBuilder):
@@ -63,11 +63,11 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
     def _do_tus_upload(self, assembly_url, tus_url, retries):
         tus_client = tus.TusClient(tus_url)
         for key, file_stream in self.files.items():
-            filename = getattr(file_stream, "name", None) or key
+            filename = _get_upload_filename(file_stream, key)
             metadata = {
                 "assembly_url": assembly_url,
                 "fieldname": key,
-                "filename": os.path.basename(filename) or key,
+                "filename": filename,
             }
             tus_client.uploader(
                 file_stream=file_stream,
@@ -85,55 +85,69 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         """
         data = self.get_options()
         file_positions = self._snapshot_file_positions()
-        if resumable:
-            extra_data = {"tus_num_expected_upload_files": len(self.files)}
-            response = await self.transloadit.request.post(
-                "/assemblies", extra_data=extra_data, data=data
-            )
-        else:
-            response = await self.transloadit.request.post(
-                "/assemblies", data=data, files=self.files
-            )
+        tus_retries = retries
+        poll_retries = retries
 
-        response_data = self._response_data(response)
-        if response_data is None:
-            return response
-
-        if self._rate_limit_reached(response_data):
-            if retries:
-                await asyncio.sleep(response_data.get("info", {}).get("retryIn", 1))
-                if not resumable:
-                    self._rewind_files(file_positions)
-                return await self.create(wait, resumable, retries - 1)
-            return response
-
-        error = response_data.get("error")
-        assembly_url = response_data.get("assembly_ssl_url")
-        tus_url = response_data.get("tus_url")
-
-        if error is not None:
-            return response
-
-        if resumable and self.files:
-            if not assembly_url or not tus_url:
-                return response
-            await self._do_tus_upload_async(assembly_url, tus_url, retries)
-
-        if wait:
-            if not assembly_url:
-                return response
-            while not self._assembly_finished(response_data):
-                sleep_time = response_data.get("info", {}).get("retryIn", 1)
-                await asyncio.sleep(sleep_time)
-                response = await self.transloadit.get_assembly(
-                    assembly_url=assembly_url or response_data.get("assembly_ssl_url")
+        while True:
+            if resumable:
+                extra_data = {"tus_num_expected_upload_files": len(self.files)} if self.files else None
+                response = await self.transloadit.request.post(
+                    "/assemblies", extra_data=extra_data, data=data
                 )
-                response_data = self._response_data(response)
-                if response_data is None:
-                    return response
-                assembly_url = response_data.get("assembly_ssl_url") or assembly_url
+            else:
+                response = await self.transloadit.request.post(
+                    "/assemblies", data=data, files=self.files
+                )
 
-        return response
+            response_data = self._response_data(response)
+            if response_data is None:
+                return response
+
+            if self._rate_limit_reached(response_data):
+                if retries:
+                    await asyncio.sleep(response_data.get("info", {}).get("retryIn", 1))
+                    if not resumable:
+                        self._rewind_files(file_positions)
+                    retries -= 1
+                    continue
+                return response
+
+            error = response_data.get("error")
+            assembly_url = response_data.get("assembly_ssl_url")
+            tus_url = response_data.get("tus_url")
+
+            if error is not None:
+                return response
+
+            if resumable and self.files:
+                if not assembly_url or not tus_url:
+                    return response
+                await self._do_tus_upload_async(assembly_url, tus_url, tus_retries)
+
+            if wait:
+                if not assembly_url:
+                    return response
+
+                poll_response = response
+                poll_data = response_data
+                remaining_polls = poll_retries
+                while not self._assembly_finished(poll_data):
+                    if remaining_polls <= 0:
+                        return poll_response
+                    sleep_time = poll_data.get("info", {}).get("retryIn", 1)
+                    await asyncio.sleep(sleep_time)
+                    poll_response = await self.transloadit.get_assembly(
+                        assembly_url=assembly_url or poll_data.get("assembly_ssl_url")
+                    )
+                    poll_data = self._response_data(poll_response)
+                    if poll_data is None:
+                        return poll_response
+                    assembly_url = poll_data.get("assembly_ssl_url") or assembly_url
+                    remaining_polls -= 1
+
+                return poll_response
+
+            return response
 
     def _response_data(self, response):
         data = response.data
