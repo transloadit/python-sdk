@@ -392,7 +392,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["X-Async-Route"], "get_assembly_plain")
 
-    async def test_async_assembly_create_returns_plain_text_response_without_crashing(self):
+    async def test_async_assembly_create_raises_on_plain_text_error_response(self):
         plain_response = Response(
             data="plain assembly response",
             status_code=502,
@@ -403,17 +403,12 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             assembly = client.new_assembly()
 
             with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=plain_response)) as post_mock:
-                with mock.patch.object(client, "get_assembly", new=mock.AsyncMock()) as get_mock:
-                    with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
-                        response = await assembly.create(wait=True, resumable=False)
+                with self.assertRaises(RuntimeError):
+                    await assembly.create(wait=True, resumable=False)
 
-        self.assertIs(response, plain_response)
-        self.assertEqual(response.data, "plain assembly response")
         post_mock.assert_awaited_once()
-        get_mock.assert_not_awaited()
-        sleep_mock.assert_not_awaited()
 
-    async def test_async_assembly_wait_returns_plain_text_poll_response_without_crashing(self):
+    async def test_async_assembly_wait_raises_on_plain_text_poll_response(self):
         initial_response = Response(
             data={
                 "ok": "ASSEMBLY_PROCESSING",
@@ -435,10 +430,9 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=initial_response)) as post_mock:
                 with mock.patch.object(client, "get_assembly", new=mock.AsyncMock(return_value=plain_response)) as get_mock:
                     with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
-                        response = await assembly.create(wait=True, resumable=False)
+                        with self.assertRaises(RuntimeError):
+                            await assembly.create(wait=True, resumable=False)
 
-        self.assertIs(response, plain_response)
-        self.assertEqual(response.data, "plain assembly response")
         post_mock.assert_awaited_once()
         get_mock.assert_awaited_once_with(
             assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
@@ -988,10 +982,18 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         self.assertEqual(response.data["error"], "RATE_LIMIT_REACHED")
         post_mock.assert_awaited_once()
-        get_mock.assert_awaited_once_with(
-            assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
+        self.assertEqual(
+            get_mock.await_args_list,
+            [
+                mock.call(
+                    assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
+                ),
+                mock.call(
+                    assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
+                ),
+            ],
         )
-        self.assertEqual(sleep_mock.await_args_list, [mock.call(0)])
+        self.assertEqual(sleep_mock.await_args_list, [mock.call(0), mock.call(0)])
 
     async def test_async_assembly_non_resumable_rate_limit_rewinds_files_for_retry(self):
         reads = []
@@ -1065,6 +1067,25 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(timeout.sock_connect, 60)
         self.assertIsNone(timeout.sock_read)
         self.assertEqual(session.calls[0][1]["data"]._fields[2][1]["Content-Type"], "image/jpeg")
+
+    async def test_async_request_filters_none_and_lowercases_booleans_in_extra_data(self):
+        session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url, session=session)
+        upload = io.BytesIO(b"payload")
+        upload.name = "clip.jpg"
+
+        response = await client.request.post(
+            "/assemblies",
+            data={"foo": "bar"},
+            extra_data={"enabled": True, "skip": None},
+            files={"file": upload},
+        )
+
+        self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
+        fields = {field[0]["name"]: field for field in session.calls[0][1]["data"]._fields}
+        self.assertIn("enabled", fields)
+        self.assertNotIn("skip", fields)
+        self.assertEqual(fields["enabled"][2], "true")
 
     async def test_async_request_uses_filename_fallback_for_trailing_slash_stream_name(self):
         session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})

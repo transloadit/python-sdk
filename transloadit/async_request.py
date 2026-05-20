@@ -41,6 +41,9 @@ class AsyncRequest:
     def session(self):
         return self._session
 
+    def _headers(self):
+        return dict(self.HEADERS)
+
     async def _ensure_session(self):
         async with self._session_lock:
             if self._session is None:
@@ -66,7 +69,15 @@ class AsyncRequest:
         )
 
     def _normalize_payload(self, data):
-        return {key: str(value) for key, value in data.items()}
+        normalized = {}
+        for key, value in data.items():
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                normalized[key] = "true" if value else "false"
+            else:
+                normalized[key] = str(value)
+        return normalized
 
     async def _read_response_data(self, response):
         try:
@@ -82,7 +93,7 @@ class AsyncRequest:
         async with session.get(
             self._get_full_url(path),
             params=self._to_payload(params),
-            headers=self.HEADERS,
+            headers=self._headers(),
             timeout=self._timeout(),
         ) as response:
             return Response(
@@ -116,7 +127,7 @@ class AsyncRequest:
         async with session.post(
             self._get_full_url(path),
             data=payload,
-            headers=self.HEADERS,
+            headers=self._headers(),
             timeout=self._timeout(files=bool(files)),
         ) as response:
             return Response(
@@ -134,7 +145,7 @@ class AsyncRequest:
         async with session.put(
             self._get_full_url(path),
             data=data,
-            headers=self.HEADERS,
+            headers=self._headers(),
             timeout=self._timeout(),
         ) as response:
             return Response(
@@ -152,7 +163,7 @@ class AsyncRequest:
         async with session.delete(
             self._get_full_url(path),
             data=data,
-            headers=self.HEADERS,
+            headers=self._headers(),
             timeout=self._timeout(),
         ) as response:
             return Response(

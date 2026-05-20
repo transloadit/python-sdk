@@ -101,6 +101,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
 
             response_data = self._response_data(response)
             if response_data is None:
+                if response.status_code >= 400:
+                    raise RuntimeError(f"Unexpected non-JSON response ({response.status_code}).")
                 return response
 
             if self._rate_limit_reached(response_data):
@@ -130,10 +132,12 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
 
                 poll_response = response
                 poll_data = response_data
-                remaining_polls = poll_retries
+                remaining_rate_limit_retries = poll_retries
                 while not self._assembly_finished(poll_data):
-                    if remaining_polls <= 0:
-                        return poll_response
+                    if self._rate_limit_reached(poll_data):
+                        if remaining_rate_limit_retries <= 0:
+                            return poll_response
+                        remaining_rate_limit_retries -= 1
                     sleep_time = poll_data.get("info", {}).get("retryIn", 1)
                     await asyncio.sleep(sleep_time)
                     poll_response = await self.transloadit.get_assembly(
@@ -141,9 +145,10 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                     )
                     poll_data = self._response_data(poll_response)
                     if poll_data is None:
+                        if poll_response.status_code >= 400:
+                            raise RuntimeError(f"Unexpected non-JSON response ({poll_response.status_code}).")
                         return poll_response
                     assembly_url = poll_data.get("assembly_ssl_url") or assembly_url
-                    remaining_polls -= 1
 
                 return poll_response
 
