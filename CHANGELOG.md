@@ -1,3 +1,11 @@
+### 2.0.0 / 2026-05-20 ###
+* **Breaking Change**: Raised the supported Python runtime floor from 3.9+ to 3.12+ so the SDK no longer has to retain vulnerable locked dependency versions for EOL Python 3.9 or depend on tooling lines that are already dropping older runtime support.
+* Raised the runtime HTTP stack to patched versions by requiring `requests` 2.33+ and adding an explicit `urllib3` 2.7+ floor.
+* Updated development and documentation tooling, including `pytest` 9.0.3, `Sphinx` 9.1, `sphinx-autobuild` 2025.8, `coverage` 7.14, `tox` 4.54, and `requests-mock` 1.12.
+* Updated CI and local Docker test coverage to a representative Python 3.12, 3.13, and 3.14 matrix.
+* Migrated package metadata to the modern `[project]` format used by Poetry 2.
+* Refreshed GitHub Actions, release documentation, and Sphinx docs that still referenced older runtime/tooling assumptions.
+
 ### 1.0.4 / 2026-05-20 ###
 * Refreshed locked runtime and development dependencies, including `aiohttp` 3.13.5, `idna` 3.15, `pygments` 2.20.0, Python-version-specific `requests` updates, and `tuspy` 1.1.0.
 * Updated development tooling to Python 3.9-compatible majors: `pytest` 8.4, `pytest-cov` 7.1, `Sphinx` 7.4, and `sphinx-autobuild` 2024.10.

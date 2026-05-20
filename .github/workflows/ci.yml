@@ -12,23 +12,23 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.12', '3.13', '3.14']
     env:
-      POETRY_VERSION: "1.8.5"
+      POETRY_VERSION: "2.4.1"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           lfs: true
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install Transloadit CLI
         run: npm install -g transloadit
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
@@ -41,7 +41,7 @@ jobs:
         run: poetry install
 
       - name: Test with coverage
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14'
         run: |
           poetry run pytest --cov=transloadit \
                           --cov-report=xml \
@@ -54,13 +54,13 @@ jobs:
           TEST_NODE_PARITY: 1
 
       - name: Test without coverage
-        if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.12'
+        if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.14'
         run: poetry run pytest tests
 
       - name: Upload coverage reports
         # Only upload coverage if we have a token (skip for Dependabot PRs)
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && (github.event_name != 'pull_request' || github.actor != 'dependabot[bot]')
-        uses: codecov/codecov-action@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14' && (github.event_name != 'pull_request' || github.actor != 'dependabot[bot]')
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
@@ -70,8 +70,8 @@ jobs:
 
       - name: Upload coverage reports (tokenless)
         # Use tokenless upload for Dependabot PRs
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
-        uses: codecov/codecov-action@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14' && github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.xml
           flags: unittests
@@ -79,8 +79,8 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload coverage artifacts
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14'
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-reports
           path: |
@@ -92,25 +92,25 @@ jobs:
     needs: python
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     env:
-      POETRY_VERSION: "1.8.5"
+      POETRY_VERSION: "2.4.1"
       PYTHON_SDK_E2E: "1"
       TRANSLOADIT_KEY: ${{ secrets.TRANSLOADIT_KEY }}
       TRANSLOADIT_SECRET: ${{ secrets.TRANSLOADIT_SECRET }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           lfs: true
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install Transloadit CLI
         run: npm install -g transloadit
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: '3.14'
           architecture: x64
           cache: 'pip'
 

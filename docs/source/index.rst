@@ -8,8 +8,8 @@ Welcome to transloadit's Python SDK documentation!
 
 |Build Status|
 
-.. |Build Status| image:: https://travis-ci.org/transloadit/python-sdk.svg?branch=main
-   :target: https://travis-ci.org/transloadit/python-sdk
+.. |Build Status| image:: https://github.com/transloadit/python-sdk/actions/workflows/ci.yml/badge.svg
+   :target: https://github.com/transloadit/python-sdk/actions/workflows/ci.yml
 
 `Transloadit`_ is a service that helps you handle file uploads, resize,
 crop and watermark your images, make GIFs, transcode your videos,
@@ -18,6 +18,8 @@ short, `Transloadit`_ is the Swiss Army Knife for your files.
 
 This is a **Python** SDK to make it easy to talk to the `Transloadit`_
 REST API.
+
+Only Python 3.12+ versions are supported.
 
 .. _Transloadit: https://transloadit.com
 
@@ -59,10 +61,10 @@ Usage
     assembly.add_step('resize', '/image/resize', {'width': 70, 'height': 70})
     assembly_response = assembly.create(retries=5, wait=True)
 
-    print assembly_response.data.get('assembly_id')
+    print(assembly_response.data.get('assembly_id'))
 
     # or
-    print assembly_response.data['assembly_id']
+    print(assembly_response.data['assembly_id'])
 
 Example
 -------
