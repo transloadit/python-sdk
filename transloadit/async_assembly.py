@@ -106,15 +106,21 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                 return await self.create(wait, resumable, retries - 1)
             return response
 
+        error = response_data.get("error")
+        assembly_url = response_data.get("assembly_ssl_url")
+        tus_url = response_data.get("tus_url")
+
+        if error is not None:
+            return response
+
         if resumable:
-            await self._do_tus_upload_async(
-                response_data.get("assembly_ssl_url"),
-                response_data.get("tus_url"),
-                retries,
-            )
+            if not assembly_url or not tus_url:
+                return response
+            await self._do_tus_upload_async(assembly_url, tus_url, retries)
 
         if wait:
-            assembly_url = response_data.get("assembly_ssl_url")
+            if not assembly_url:
+                return response
             while not self._assembly_finished(response_data):
                 sleep_time = response_data.get("info", {}).get("retryIn", 1)
                 await asyncio.sleep(sleep_time)

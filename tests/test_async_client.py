@@ -668,6 +668,84 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         sleep_mock.assert_not_awaited()
         self.assertEqual(calls, [])
 
+    async def test_async_assembly_resumable_error_response_skips_tus_upload(self):
+        calls = []
+
+        class _TusClient:
+            def __init__(self, tus_url):
+                calls.append(("client", tus_url))
+
+            def uploader(self, **kwargs):
+                raise AssertionError("TUS upload should not start for error responses")
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+            assembly.add_file(io.BytesIO(b"payload"))
+
+            error_response = Response(
+                data={
+                    "error": "ASSEMBLY_NOT_AUTHORIZED",
+                },
+                status_code=401,
+                headers={},
+            )
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=error_response)) as post_mock:
+                with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                    response = await assembly.create(resumable=True)
+
+        self.assertIs(response, error_response)
+        post_mock.assert_awaited_once()
+        self.assertEqual(calls, [])
+
+    async def test_async_assembly_resumable_response_without_upload_urls_skips_tus_upload(self):
+        calls = []
+
+        class _TusClient:
+            def __init__(self, tus_url):
+                calls.append(("client", tus_url))
+
+            def uploader(self, **kwargs):
+                raise AssertionError("TUS upload should not start when upload URLs are missing")
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+            assembly.add_file(io.BytesIO(b"payload"))
+
+            incomplete_response = Response(
+                data={"ok": "ASSEMBLY_PROCESSING"},
+                status_code=200,
+                headers={},
+            )
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=incomplete_response)) as post_mock:
+                with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                    response = await assembly.create(resumable=True)
+
+        self.assertIs(response, incomplete_response)
+        post_mock.assert_awaited_once()
+        self.assertEqual(calls, [])
+
+    async def test_async_assembly_wait_returns_response_without_assembly_url(self):
+        incomplete_response = Response(
+            data={"ok": "ASSEMBLY_PROCESSING"},
+            status_code=200,
+            headers={},
+        )
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=incomplete_response)) as post_mock:
+                with mock.patch.object(client, "get_assembly", new=mock.AsyncMock()) as get_mock:
+                    with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
+                        response = await assembly.create(wait=True, resumable=False)
+
+        self.assertIs(response, incomplete_response)
+        post_mock.assert_awaited_once()
+        get_mock.assert_not_awaited()
+        sleep_mock.assert_not_awaited()
+
     async def test_async_resumable_upload_posts_extra_data_and_uses_tus_metadata(self):
         calls = []
 
