@@ -635,6 +635,67 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(calls[0], ("client", f"{self.server.base_url}/uploads"))
         self.assertEqual(calls[1][0], "uploader")
 
+    async def test_async_assembly_resumable_rate_limit_skips_rewind_before_retrying(self):
+        calls = []
+
+        class _BrokenRewindStream(io.BytesIO):
+            def seek(self, position, *args, **kwargs):
+                raise OSError("seek failed")
+
+        class _Uploader:
+            def __init__(self, metadata):
+                self.metadata = metadata
+
+            def upload(self):
+                calls.append(("upload", dict(self.metadata)))
+
+        class _TusClient:
+            def __init__(self, tus_url):
+                calls.append(("client", tus_url))
+
+            def uploader(self, **kwargs):
+                calls.append(("uploader", dict(kwargs["metadata"])))
+                return _Uploader(kwargs["metadata"])
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+            upload = _BrokenRewindStream(b"payload")
+            upload.name = "payload.bin"
+            assembly.add_file(upload)
+
+            rate_limited = Response(
+                data={
+                    "error": "RATE_LIMIT_REACHED",
+                    "info": {"retryIn": 0},
+                },
+                status_code=200,
+                headers={},
+            )
+            success = Response(
+                data={
+                    "assembly_ssl_url": f"{self.server.base_url}/assemblies/assembly-123",
+                    "tus_url": f"{self.server.base_url}/uploads",
+                },
+                status_code=200,
+                headers={},
+            )
+
+            with mock.patch.object(
+                client.request,
+                "post",
+                new=mock.AsyncMock(side_effect=[rate_limited, success]),
+            ) as post_mock:
+                with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock):
+                    with mock.patch("asyncio.to_thread", new=mock.AsyncMock(side_effect=lambda func, *args: func(*args))) as to_thread_mock:
+                        with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                            response = await assembly.create(resumable=True, retries=2)
+
+        self.assertEqual(response.data["assembly_ssl_url"], f"{self.server.base_url}/assemblies/assembly-123")
+        self.assertEqual(post_mock.await_count, 2)
+        self.assertEqual(to_thread_mock.await_count, 1)
+        self.assertEqual(calls[0], ("client", f"{self.server.base_url}/uploads"))
+        self.assertEqual(calls[1][0], "uploader")
+
     async def test_async_assembly_resumable_rate_limit_returns_response_without_upload_when_retries_exhausted(self):
         calls = []
 
@@ -885,6 +946,31 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(reads, [b"payload", b"payload"])
         sleep_mock.assert_awaited_once_with(0)
 
+    async def test_async_assembly_non_resumable_rate_limit_raises_when_rewind_fails(self):
+        class _BrokenRewindStream(io.BytesIO):
+            def seek(self, position, *args, **kwargs):
+                raise OSError("seek failed")
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+            assembly.add_file(_BrokenRewindStream(b"payload"))
+
+            rate_limited = Response(
+                data={
+                    "error": "RATE_LIMIT_REACHED",
+                    "info": {"retryIn": 0},
+                },
+                status_code=200,
+                headers={},
+            )
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=rate_limited)) as post_mock:
+                with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock):
+                    with self.assertRaises(RuntimeError):
+                        await assembly.create(resumable=False, retries=1)
+
+        post_mock.assert_awaited_once()
+
     async def test_async_request_uses_connect_and_read_timeouts_for_uploads(self):
         session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
         client = AsyncTransloadit("key", "secret", service=self.server.base_url, session=session)
@@ -985,4 +1071,6 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         positions = assembly._snapshot_file_positions()
         self.assertNotIn("broken", positions)
 
-        assembly._rewind_files({"missing": 4, "broken": 7})
+        assembly._rewind_files({"missing": 4})
+        with self.assertRaises(RuntimeError):
+            assembly._rewind_files({"broken": 7})

@@ -57,8 +57,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                 continue
             try:
                 file_stream.seek(position)
-            except (AttributeError, OSError, ValueError):
-                continue
+            except (AttributeError, OSError, ValueError) as exc:
+                raise RuntimeError(f"Unable to rewind file stream {key!r}.") from exc
 
     def _do_tus_upload(self, assembly_url, tus_url, retries):
         tus_client = tus.TusClient(tus_url)
@@ -102,7 +102,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         if self._rate_limit_reached(response_data):
             if retries:
                 await asyncio.sleep(response_data.get("info", {}).get("retryIn", 1))
-                self._rewind_files(file_positions)
+                if not resumable:
+                    self._rewind_files(file_positions)
                 return await self.create(wait, resumable, retries - 1)
             return response
 
