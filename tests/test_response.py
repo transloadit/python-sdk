@@ -24,6 +24,8 @@ class ResponseTest(unittest.TestCase):
     def test_response_supports_async_preloaded_values_and_empty_default(self):
         empty = Response()
         self.assertIsNone(empty.data)
+        self.assertIsNone(empty.status_code)
+        self.assertIsNone(empty.headers)
 
         response = Response(
             data={"ok": "async"},

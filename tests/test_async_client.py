@@ -345,6 +345,18 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertFalse(session.closed)
         self.assertEqual(session.close_calls, 0)
 
+        closed_session = _NeverOwnedSession()
+        closed_session.closed = True
+        closed_client = AsyncTransloadit(
+            "key",
+            "secret",
+            service=self.server.base_url,
+            session=closed_session,
+        )
+
+        with self.assertRaises(RuntimeError):
+            await closed_client.get_assembly(assembly_id="abc123")
+
     async def test_async_client_delete_template_get_bill_and_plain_text_fallback(self):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             response = await client.delete_template("tpl-1")
@@ -555,6 +567,39 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(calls[0], ("client", f"{self.server.base_url}/uploads"))
         self.assertEqual(calls[1][0], "uploader")
 
+    async def test_async_assembly_resumable_rate_limit_returns_response_without_upload_when_retries_exhausted(self):
+        calls = []
+
+        class _TusClient:
+            def __init__(self, tus_url):
+                calls.append(("client", tus_url))
+
+            def uploader(self, **kwargs):
+                raise AssertionError("TUS upload should not start when retries are exhausted")
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+            assembly.add_file(io.BytesIO(b"payload"))
+
+            rate_limited = Response(
+                data={
+                    "error": "RATE_LIMIT_REACHED",
+                    "info": {"retryIn": 0},
+                },
+                status_code=200,
+                headers={},
+            )
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=rate_limited)) as post_mock:
+                with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                    with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
+                        response = await assembly.create(resumable=True, retries=0)
+
+        self.assertEqual(response.data["error"], "RATE_LIMIT_REACHED")
+        post_mock.assert_awaited_once()
+        sleep_mock.assert_not_awaited()
+        self.assertEqual(calls, [])
+
     async def test_async_resumable_upload_posts_extra_data_and_uses_tus_metadata(self):
         calls = []
 
@@ -576,7 +621,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             assembly = client.new_assembly()
             upload = io.BytesIO(b"payload")
-            upload.name = ""
+            upload.name = None
             assembly.add_file(upload, "explicit_field")
 
             with mock.patch(
@@ -651,7 +696,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                         response = await assembly.create(wait=True, resumable=False, retries=2)
 
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
-        self.assertEqual(post_mock.await_count, 2)
+        self.assertEqual(post_mock.await_count, 1)
         self.assertEqual(
             get_mock.await_args_list,
             [
@@ -659,7 +704,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                 mock.call(assembly_url=f"{self.server.base_url}/assemblies/assembly-123"),
             ],
         )
-        self.assertEqual(sleep_mock.await_args_list, [mock.call(0), mock.call(0), mock.call(0)])
+        self.assertEqual(sleep_mock.await_args_list, [mock.call(0), mock.call(0)])
 
     async def test_async_assembly_non_resumable_rate_limit_rewinds_files_for_retry(self):
         reads = []
@@ -698,6 +743,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
         client = AsyncTransloadit("key", "secret", service=self.server.base_url, session=session)
         upload = io.BytesIO(b"payload")
+        upload.name = None
 
         response = await client.request.post("/assemblies", data={"foo": "bar"}, files={"file": upload})
 
@@ -705,7 +751,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         timeout = session.calls[0][1]["timeout"]
         self.assertIsNone(timeout.total)
         self.assertEqual(timeout.sock_connect, 60)
-        self.assertEqual(timeout.sock_read, 60)
+        self.assertIsNone(timeout.sock_read)
 
     async def test_async_resumable_upload_uses_to_thread(self):
         calls = []

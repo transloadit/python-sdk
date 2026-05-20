@@ -63,7 +63,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
     def _do_tus_upload(self, assembly_url, tus_url, retries):
         tus_client = tus.TusClient(tus_url)
         for key, file_stream in self.files.items():
-            filename = getattr(file_stream, "name", key)
+            filename = getattr(file_stream, "name", None) or key
             metadata = {
                 "assembly_url": assembly_url,
                 "fieldname": key,
@@ -90,23 +90,24 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
             response = await self.transloadit.request.post(
                 "/assemblies", extra_data=extra_data, data=data
             )
-            if self._rate_limit_reached(response) and retries:
+        else:
+            response = await self.transloadit.request.post(
+                "/assemblies", data=data, files=self.files
+            )
+
+        if self._rate_limit_reached(response):
+            if retries:
                 await asyncio.sleep(response.data.get("info", {}).get("retryIn", 1))
                 self._rewind_files(file_positions)
                 return await self.create(wait, resumable, retries - 1)
+            return response
+
+        if resumable:
             await self._do_tus_upload_async(
                 response.data.get("assembly_ssl_url"),
                 response.data.get("tus_url"),
                 retries,
             )
-        else:
-            response = await self.transloadit.request.post(
-                "/assemblies", data=data, files=self.files
-            )
-            if self._rate_limit_reached(response) and retries:
-                await asyncio.sleep(response.data.get("info", {}).get("retryIn", 1))
-                self._rewind_files(file_positions)
-                return await self.create(wait, resumable, retries - 1)
 
         if wait:
             assembly_url = response.data.get("assembly_ssl_url")
@@ -118,11 +119,6 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                 )
                 assembly_url = response.data.get("assembly_ssl_url") or assembly_url
 
-        if self._rate_limit_reached(response) and retries:
-            await asyncio.sleep(response.data.get("info", {}).get("retryIn", 1))
-            self._rewind_files(file_positions)
-            return await self.create(wait, resumable, retries - 1)
-
         return response
 
     def _assembly_finished(self, response):
@@ -133,7 +129,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         error = response.data.get("error")
         is_failed = error is not None
         is_fetch_rate_limit = error == "ASSEMBLY_STATUS_FETCHING_RATE_LIMIT_REACHED"
-        return is_aborted or is_canceled or is_completed or (is_failed and not is_fetch_rate_limit)
+        is_submit_rate_limit = error == "RATE_LIMIT_REACHED"
+        return is_aborted or is_canceled or is_completed or (is_failed and not (is_fetch_rate_limit or is_submit_rate_limit))
 
     def _rate_limit_reached(self, response):
         return response.data.get("error") == "RATE_LIMIT_REACHED"

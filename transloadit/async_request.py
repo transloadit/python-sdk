@@ -1,3 +1,4 @@
+import asyncio
 import os
 import copy
 import hashlib
@@ -24,23 +25,34 @@ class AsyncRequest:
         self.transloadit = transloadit
         self._session = session
         self._owns_session = session is None
+        self._session_lock = asyncio.Lock()
 
     @property
     def session(self):
         return self._session
 
     async def _ensure_session(self):
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession()
-            self._owns_session = True
-        return self._session
+        async with self._session_lock:
+            if self._session is None:
+                self._session = aiohttp.ClientSession()
+                self._owns_session = True
+            elif self._session.closed:
+                if self._owns_session:
+                    self._session = aiohttp.ClientSession()
+                else:
+                    raise RuntimeError("Injected aiohttp session is closed.")
+            return self._session
 
     async def aclose(self):
         if self._session is not None and not self._session.closed and self._owns_session:
             await self._session.close()
 
-    def _timeout(self):
-        return aiohttp.ClientTimeout(total=None, sock_connect=TIMEOUT, sock_read=TIMEOUT)
+    def _timeout(self, files=False):
+        return aiohttp.ClientTimeout(
+            total=None,
+            sock_connect=TIMEOUT,
+            sock_read=None if files else TIMEOUT,
+        )
 
     def _normalize_payload(self, data):
         return {key: str(value) for key, value in data.items()}
@@ -83,7 +95,7 @@ class AsyncRequest:
                 form.add_field(key, value)
 
             for key, file_stream in files.items():
-                filename = os.path.basename(getattr(file_stream, "name", key)) or key
+                filename = os.path.basename(getattr(file_stream, "name", None) or key) or key
                 form.add_field(key, file_stream, filename=filename)
             payload = form
         else:
@@ -93,7 +105,7 @@ class AsyncRequest:
             self._get_full_url(path),
             data=payload,
             headers=self.HEADERS,
-            timeout=self._timeout(),
+            timeout=self._timeout(files=bool(files)),
         ) as response:
             return Response(
                 data=await self._read_response_data(response),

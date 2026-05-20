@@ -52,6 +52,8 @@ class Response:
         """
         if self._status_code is not _MISSING:
             return self._status_code
+        if self._response is None:
+            return None
         return self._response.status_code
 
     @property
@@ -61,6 +63,8 @@ class Response:
         """
         if self._headers is not _MISSING:
             return self._headers
+        if self._response is None:
+            return None
         return self._response.headers
 
 
