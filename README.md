@@ -36,6 +36,26 @@ print(assembly_response.data.get('assembly_id'))
 print(assembly_response.data['assembly_id'])
 ```
 
+## Async usage
+
+```python
+from transloadit.async_client import AsyncTransloadit
+
+async with AsyncTransloadit("TRANSLOADIT_KEY", "TRANSLOADIT_SECRET") as tl:
+    response = await tl.get_assembly(assembly_id="abc")
+    print(response.data["ok"])
+
+    assembly = tl.new_assembly()
+    assembly.add_step("resize", "/image/resize", {"width": 70, "height": 70})
+    with open("PATH/TO/FILE.jpg", "rb") as upload:
+        assembly.add_file(upload)
+        response = await assembly.create(wait=True, resumable=False)
+```
+
+The async client keeps polling on `asyncio.sleep`. Resumable uploads still use the existing TUS client, but are offloaded with `asyncio.to_thread()` so the event loop stays responsive.
+
+If you do not use `async with`, call `await tl.aclose()` when you are done with the session.
+
 ## Example
 
 For fully working examples, take a look at [`examples/`](https://github.com/transloadit/python-sdk/tree/HEAD/examples).

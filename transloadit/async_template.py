@@ -1,0 +1,20 @@
+from . import optionbuilder
+
+
+class AsyncTemplate(optionbuilder.OptionBuilder):
+    """
+    Object representation of a new Template to be created asynchronously.
+    """
+
+    def __init__(self, transloadit, name, options=None):
+        super().__init__(options)
+        self.transloadit = transloadit
+        self.name = name
+
+    async def create(self):
+        """
+        Save/Submit the template to the Transloadit server.
+        """
+        data = self.get_options()
+        data.update({"name": self.name})
+        return await self.transloadit.request.post("/templates", data=data)
