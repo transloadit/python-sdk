@@ -15,7 +15,10 @@ RUN apt-get update \
        ca-certificates \
        build-essential \
        git \
+       git-lfs \
     && rm -rf /var/lib/apt/lists/*
+
+RUN git lfs install --system
 
 # Install Node.js 20 (for Smart CDN parity tests) and supporting CLI tooling
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
