@@ -132,7 +132,7 @@ verify_versions_consistent() {
     err "Version mismatch: tests/test_request.py expects $header_version but pyproject.toml has $version"
     exit 1
   fi
-  if ! grep -q "### ${version}/" CHANGELOG.md; then
+  if ! grep -Eq "^### ${version}([[:space:]/]|$)" CHANGELOG.md; then
     err "CHANGELOG.md does not contain an entry for ${version}"
     exit 1
   fi

@@ -2,10 +2,9 @@ import hashlib
 import hmac
 import json
 import copy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
-from six import b
 
 from .response import as_response
 from . import __version__
@@ -114,7 +113,7 @@ class Request:
 
     def _to_payload(self, data):
         data = copy.deepcopy(data or {})
-        expiry = timedelta(seconds=self.transloadit.duration) + datetime.utcnow()
+        expiry = datetime.now(timezone.utc) + timedelta(seconds=self.transloadit.duration)
         data["auth"] = {
             "key": self.transloadit.auth_key,
             "expires": expiry.strftime("%Y/%m/%d %H:%M:%S+00:00"),
@@ -123,7 +122,9 @@ class Request:
         return {"params": json_data, "signature": self._sign_data(json_data)}
 
     def _sign_data(self, message):
-        hash_string = hmac.new(b(self.transloadit.auth_secret), message.encode("utf-8"), hashlib.sha384).hexdigest()
+        hash_string = hmac.new(
+            self.transloadit.auth_secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha384
+        ).hexdigest()
         return f"sha384:{hash_string}"
 
     def _get_full_url(self, url):

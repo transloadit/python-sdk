@@ -1,3 +1,9 @@
+### 1.0.4 / 2026-05-20 ###
+* Refreshed locked runtime and development dependencies, including `aiohttp` 3.13.5, `idna` 3.15, `pygments` 2.20.0, Python-version-specific `requests` updates, and `tuspy` 1.1.0.
+* Updated development tooling to Python 3.9-compatible majors: `pytest` 8.4, `pytest-cov` 7.1, `Sphinx` 7.4, and `sphinx-autobuild` 2024.10.
+* Kept SDK runtime support at Python 3.9+ to match package metadata, README, and CI, and held back newer tooling majors that require a higher Python floor.
+* Removed obsolete compatibility and documentation tooling from the dependency surface, including `six`, `livereload`, and `tornado`.
+
 ### 1.0.3/ 2025-28-10 ###
 * Added a Docker-based test harness (`scripts/test-in-docker.sh`) that mirrors our GitHub Actions matrix locally, including optional Smart CDN parity checks via the official Transloadit CLI.
 * Introduced an opt-in end-to-end image resize test (`tests/test_e2e_upload.py`) plus supporting `chameleon.jpg` fixture; enable by setting `PYTHON_SDK_E2E=1` along with `TRANSLOADIT_KEY`/`TRANSLOADIT_SECRET`.

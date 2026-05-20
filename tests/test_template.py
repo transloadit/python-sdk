@@ -1,7 +1,7 @@
 import unittest
+import urllib.parse
 
 import requests_mock
-from six.moves import urllib
 
 from . import request_body_matcher
 from transloadit.client import Transloadit
