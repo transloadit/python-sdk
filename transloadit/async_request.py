@@ -44,8 +44,9 @@ class AsyncRequest:
             return self._session
 
     async def aclose(self):
-        if self._session is not None and not self._session.closed and self._owns_session:
-            await self._session.close()
+        async with self._session_lock:
+            if self._session is not None and not self._session.closed and self._owns_session:
+                await self._session.close()
 
     def _timeout(self, files=False):
         return aiohttp.ClientTimeout(

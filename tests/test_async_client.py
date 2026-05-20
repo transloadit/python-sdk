@@ -357,6 +357,21 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             await closed_client.get_assembly(assembly_id="abc123")
 
+    async def test_async_client_close_reopens_owned_session(self):
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+
+        first_session = await client.request._ensure_session()
+        self.assertFalse(first_session.closed)
+
+        await client.close()
+        self.assertTrue(first_session.closed)
+
+        second_session = await client.request._ensure_session()
+        self.assertIsNot(first_session, second_session)
+        self.assertFalse(second_session.closed)
+
+        await client.close()
+
     async def test_async_client_delete_template_get_bill_and_plain_text_fallback(self):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             response = await client.delete_template("tpl-1")
@@ -376,6 +391,59 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(response.data, "plain assembly response")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["X-Async-Route"], "get_assembly_plain")
+
+    async def test_async_assembly_create_returns_plain_text_response_without_crashing(self):
+        plain_response = Response(
+            data="plain assembly response",
+            status_code=502,
+            headers={"X-Async-Route": "plain"},
+        )
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=plain_response)) as post_mock:
+                with mock.patch.object(client, "get_assembly", new=mock.AsyncMock()) as get_mock:
+                    with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
+                        response = await assembly.create(wait=True, resumable=False)
+
+        self.assertIs(response, plain_response)
+        self.assertEqual(response.data, "plain assembly response")
+        post_mock.assert_awaited_once()
+        get_mock.assert_not_awaited()
+        sleep_mock.assert_not_awaited()
+
+    async def test_async_assembly_wait_returns_plain_text_poll_response_without_crashing(self):
+        initial_response = Response(
+            data={
+                "ok": "ASSEMBLY_PROCESSING",
+                "info": {"retryIn": 0},
+                "assembly_ssl_url": f"{self.server.base_url}/assemblies/assembly-123",
+            },
+            status_code=200,
+            headers={"X-Async-Route": "initial"},
+        )
+        plain_response = Response(
+            data="plain assembly response",
+            status_code=502,
+            headers={"X-Async-Route": "plain"},
+        )
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=initial_response)) as post_mock:
+                with mock.patch.object(client, "get_assembly", new=mock.AsyncMock(return_value=plain_response)) as get_mock:
+                    with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
+                        response = await assembly.create(wait=True, resumable=False)
+
+        self.assertIs(response, plain_response)
+        self.assertEqual(response.data, "plain assembly response")
+        post_mock.assert_awaited_once()
+        get_mock.assert_awaited_once_with(
+            assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
+        )
+        sleep_mock.assert_awaited_once_with(0)
 
     def test_async_signed_smart_cdn_url_matches_sync_and_rejects_bad_types(self):
         async_client = AsyncTransloadit("test-key", "test-secret")

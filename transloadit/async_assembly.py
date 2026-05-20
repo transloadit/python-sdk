@@ -95,42 +95,53 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                 "/assemblies", data=data, files=self.files
             )
 
-        if self._rate_limit_reached(response):
+        response_data = self._response_data(response)
+        if response_data is None:
+            return response
+
+        if self._rate_limit_reached(response_data):
             if retries:
-                await asyncio.sleep(response.data.get("info", {}).get("retryIn", 1))
+                await asyncio.sleep(response_data.get("info", {}).get("retryIn", 1))
                 self._rewind_files(file_positions)
                 return await self.create(wait, resumable, retries - 1)
             return response
 
         if resumable:
             await self._do_tus_upload_async(
-                response.data.get("assembly_ssl_url"),
-                response.data.get("tus_url"),
+                response_data.get("assembly_ssl_url"),
+                response_data.get("tus_url"),
                 retries,
             )
 
         if wait:
-            assembly_url = response.data.get("assembly_ssl_url")
-            while not self._assembly_finished(response):
-                sleep_time = response.data.get("info", {}).get("retryIn", 1)
+            assembly_url = response_data.get("assembly_ssl_url")
+            while not self._assembly_finished(response_data):
+                sleep_time = response_data.get("info", {}).get("retryIn", 1)
                 await asyncio.sleep(sleep_time)
                 response = await self.transloadit.get_assembly(
-                    assembly_url=assembly_url or response.data.get("assembly_ssl_url")
+                    assembly_url=assembly_url or response_data.get("assembly_ssl_url")
                 )
-                assembly_url = response.data.get("assembly_ssl_url") or assembly_url
+                response_data = self._response_data(response)
+                if response_data is None:
+                    return response
+                assembly_url = response_data.get("assembly_ssl_url") or assembly_url
 
         return response
 
-    def _assembly_finished(self, response):
-        status = response.data.get("ok")
+    def _response_data(self, response):
+        data = response.data
+        return data if isinstance(data, dict) else None
+
+    def _assembly_finished(self, response_data):
+        status = response_data.get("ok")
         is_aborted = status == "REQUEST_ABORTED"
         is_canceled = status == "ASSEMBLY_CANCELED"
         is_completed = status == "ASSEMBLY_COMPLETED"
-        error = response.data.get("error")
+        error = response_data.get("error")
         is_failed = error is not None
         is_fetch_rate_limit = error == "ASSEMBLY_STATUS_FETCHING_RATE_LIMIT_REACHED"
         is_submit_rate_limit = error == "RATE_LIMIT_REACHED"
         return is_aborted or is_canceled or is_completed or (is_failed and not (is_fetch_rate_limit or is_submit_rate_limit))
 
-    def _rate_limit_reached(self, response):
-        return response.data.get("error") == "RATE_LIMIT_REACHED"
+    def _rate_limit_reached(self, response_data):
+        return response_data.get("error") == "RATE_LIMIT_REACHED"
