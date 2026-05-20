@@ -11,7 +11,7 @@ A **Python** Integration for [Transloadit](https://transloadit.com)'s file uploa
 
 This is a **Python** SDK to make it easy to talk to the [Transloadit](https://transloadit.com) REST API.
 
-Only Python 3.9+ versions are supported.
+Only Python 3.12+ versions are supported.
 
 ## Install
 
@@ -56,18 +56,18 @@ scripts/test-in-docker.sh
 
 This script will:
 
-- build images for the Python versions we test in CI (3.9–3.13)
-- install Poetry, Node.js 20, and the Transloadit CLI
+- build images for the Python versions we test in CI (3.12, 3.13, and 3.14)
+- install Poetry, Node.js 24, and the Transloadit CLI
 - pass credentials from `.env` (if present) so end-to-end tests can run against real Transloadit accounts
 
-Signature parity tests use `npx transloadit smart_sig` under the hood, matching the reference implementation used by our other SDKs. Our GitHub Actions workflow also runs the E2E upload against Python 3.12 on every push/PR using a dedicated Transloadit test account (wired through the `TRANSLOADIT_KEY` and `TRANSLOADIT_SECRET` secrets).
+Signature parity tests use `npx transloadit smart_sig` under the hood, matching the reference implementation used by our other SDKs. Our GitHub Actions workflow also runs the E2E upload against Python 3.14 on every push/PR using a dedicated Transloadit test account (wired through the `TRANSLOADIT_KEY` and `TRANSLOADIT_SECRET` secrets).
 
-Pass `--python 3.12` (or set `PYTHON_VERSIONS`) to restrict the matrix, or append a custom command after `--`, for example `scripts/test-in-docker.sh -- pytest -k smartcdn`.
+Pass `--python 3.14` (or set `PYTHON_VERSIONS`) to restrict the matrix, or append a custom command after `--`, for example `scripts/test-in-docker.sh -- pytest -k smartcdn`.
 
 To exercise the optional end-to-end upload against a real Transloadit account, provide `TRANSLOADIT_KEY` and `TRANSLOADIT_SECRET` (via environment variables or `.env`) and set `PYTHON_SDK_E2E=1`:
 
 ```bash
-PYTHON_SDK_E2E=1 scripts/test-in-docker.sh --python 3.12 -- pytest tests/test_e2e_upload.py
+PYTHON_SDK_E2E=1 scripts/test-in-docker.sh --python 3.14 -- pytest tests/test_e2e_upload.py
 ```
 
 The test uploads `chameleon.jpg`, resizes it, and asserts on the live assembly results.

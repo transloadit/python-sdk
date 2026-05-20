@@ -44,13 +44,9 @@ ensure_docker() {
 }
 
 configure_platform() {
-  if [[ -z "${DOCKER_PLATFORM:-}" ]]; then
-    local arch
-    arch=$(uname -m)
-    if [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
-      DOCKER_PLATFORM=linux/amd64
-    fi
-  fi
+  # Docker should use its native platform by default. Set DOCKER_PLATFORM when
+  # an explicit cross-architecture run is needed.
+  :
 }
 
 run_outside_container() {
@@ -72,6 +68,7 @@ run_outside_container() {
     --user "$(id -u):$(id -g)"
     -e HOME=/workspace/$HOME_DIR
     -e POETRY_CACHE_DIR=/workspace/$POETRY_CACHE_DIR
+    -e POETRY_VIRTUALENVS_IN_PROJECT=false
     -e PIP_CACHE_DIR=/workspace/$PIP_CACHE_DIR
     -v "$PWD":/workspace
     -v "$PWD/$POETRY_CACHE_DIR":/workspace/"$POETRY_CACHE_DIR"
@@ -148,9 +145,6 @@ publish_inside_container() {
         ;;
       --dry-run)
         dry_run=1
-        shift
-        ;;
-      --inside-container)
         shift
         ;;
       -h|--help)
