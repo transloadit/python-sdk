@@ -580,6 +580,46 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         )
         self.assertEqual(sleep_mock.await_args_list, [mock.call(0.25), mock.call(0.25)])
 
+    async def test_async_assembly_wait_polls_zero_file_resumable_assembly_without_tus(self):
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+
+            initial = Response(
+                data={
+                    "ok": "ASSEMBLY_PROCESSING",
+                    "info": {"retryIn": 0.25},
+                    "assembly_ssl_url": f"{self.server.base_url}/assemblies/assembly-123",
+                },
+                status_code=200,
+                headers={"X-Async-Route": "initial"},
+            )
+            completed = Response(
+                data={"ok": "ASSEMBLY_COMPLETED", "assembly_id": "assembly-123"},
+                status_code=200,
+                headers={"X-Async-Route": "completed"},
+            )
+
+            class _TusClient:
+                def __init__(self, tus_url):
+                    raise AssertionError("TUS upload should not start for zero-file resumable assemblies")
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=initial)) as post_mock:
+                with mock.patch.object(
+                    client,
+                    "get_assembly",
+                    new=mock.AsyncMock(return_value=completed),
+                ) as get_mock:
+                    with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
+                        with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                            response = await assembly.create(wait=True, resumable=True)
+
+        self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
+        post_mock.assert_awaited_once()
+        get_mock.assert_awaited_once_with(
+            assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
+        )
+        self.assertEqual(sleep_mock.await_args_list, [mock.call(0.25)])
+
     async def test_async_assembly_resumable_rate_limit_retries_before_tus_upload(self):
         calls = []
 
