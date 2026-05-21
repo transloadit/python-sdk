@@ -1,12 +1,14 @@
-import io
 import asyncio
+import io
 import json
+import threading
 from pathlib import Path
 from unittest import IsolatedAsyncioTestCase, mock
 
-from aiohttp import web
+from aiohttp import payload, web
 
 from transloadit.async_client import AsyncTransloadit
+from transloadit.async_request import _NonClosingUploadStream
 from transloadit.client import Transloadit
 from transloadit.response import Response
 
@@ -232,7 +234,19 @@ class _RecordingSession:
         self.closed = False
         self.payload = payload
 
+    def delete(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        return _FakeResponseContext(self.payload)
+
+    def get(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        return _FakeResponseContext(self.payload)
+
     def post(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        return _FakeResponseContext(self.payload)
+
+    def put(self, url, **kwargs):
         self.calls.append((url, kwargs))
         return _FakeResponseContext(self.payload)
 
@@ -274,8 +288,8 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
             self.assertEqual(response.data["assembly_id"], "abc123")
             self.assertEqual(response.status_code, 200)
-            self.assertIs(type(response.headers), dict)
             self.assertEqual(response.headers["X-Async-Route"], "get_assembly")
+            self.assertEqual(response.headers["x-async-route"], "get_assembly")
 
             response = await client.list_assemblies()
             self.assertEqual(response.data["items"], [])
@@ -367,6 +381,28 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         with self.assertRaises(RuntimeError):
             await closed_client.get_assembly(assembly_id="abc123")
+
+    async def test_async_client_quotes_path_ids(self):
+        session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url, session=session)
+
+        await client.get_assembly(assembly_id="assembly/with?chars")
+        await client.cancel_assembly(assembly_id="cancel/with?chars")
+        await client.get_template("template/with?chars")
+        await client.update_template("update/with?chars", {"name": "foo"})
+        await client.delete_template("delete/with?chars")
+
+        urls = [call[0] for call in session.calls]
+        self.assertEqual(
+            urls,
+            [
+                f"{self.server.base_url}/assemblies/assembly%2Fwith%3Fchars",
+                f"{self.server.base_url}/assemblies/cancel%2Fwith%3Fchars",
+                f"{self.server.base_url}/templates/template%2Fwith%3Fchars",
+                f"{self.server.base_url}/templates/update%2Fwith%3Fchars",
+                f"{self.server.base_url}/templates/delete%2Fwith%3Fchars",
+            ],
+        )
 
     async def test_async_client_close_reopens_owned_session(self):
         client = AsyncTransloadit("key", "secret", service=self.server.base_url)
@@ -468,6 +504,34 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         self.assertIs(response, plain_response)
         post_mock.assert_awaited_once()
+
+    async def test_async_assembly_resumable_plain_text_success_response_raises_before_tus_upload(self):
+        calls = []
+
+        class _TusClient:
+            def __init__(self, tus_url):
+                calls.append(("client", tus_url))
+
+            def uploader(self, **kwargs):
+                raise AssertionError("TUS upload should not start without upload URLs")
+
+        plain_response = Response(
+            data="plain assembly response",
+            status_code=200,
+            headers={"X-Async-Route": "plain"},
+        )
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+            assembly.add_file(io.BytesIO(b"payload"))
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=plain_response)) as post_mock:
+                with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                    with self.assertRaises(RuntimeError):
+                        await assembly.create(resumable=True)
+
+        post_mock.assert_awaited_once()
+        self.assertEqual(calls, [])
 
     async def test_async_assembly_wait_raises_on_plain_text_poll_response(self):
         initial_response = Response(
@@ -1182,6 +1246,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
     async def test_async_assembly_non_resumable_rate_limit_rewinds_files_for_retry(self):
         reads = []
+        upload = io.BytesIO(b"payload")
 
         async def fake_post(path, data=None, extra_data=None, files=None):
             file_stream = files["file"]
@@ -1201,12 +1266,15 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                 headers={},
             )
 
+        async def fake_sleep(delay):
+            self.assertEqual(upload.tell(), 0)
+
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             assembly = client.new_assembly()
-            assembly.add_file(io.BytesIO(b"payload"))
+            assembly.add_file(upload)
 
             with mock.patch.object(client.request, "post", new=mock.AsyncMock(side_effect=fake_post)):
-                with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
+                with mock.patch("asyncio.sleep", new=mock.AsyncMock(side_effect=fake_sleep)) as sleep_mock:
                     response = await assembly.create(resumable=False, retries=2)
 
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
@@ -1238,6 +1306,47 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         post_mock.assert_awaited_once()
 
+    async def test_async_assembly_rate_limit_ignores_malformed_error_values(self):
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+        assembly = client.new_assembly()
+
+        self.assertFalse(assembly._rate_limit_reached({"error": ["RATE_LIMIT_REACHED"]}))
+        self.assertFalse(assembly._rate_limit_reached({"error": {"code": "RATE_LIMIT_REACHED"}}))
+
+    async def test_async_tus_upload_cancellation_waits_for_thread_to_finish(self):
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+        assembly = client.new_assembly()
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+
+        def blocking_upload(assembly_url, tus_url, retries):
+            started.set()
+            release.wait(timeout=5)
+            finished.set()
+
+        assembly._do_tus_upload = blocking_upload
+        upload_task = asyncio.create_task(
+            assembly._do_tus_upload_async(
+                f"{self.server.base_url}/assemblies/assembly-123",
+                f"{self.server.base_url}/uploads",
+                retries=1,
+            )
+        )
+
+        await asyncio.to_thread(started.wait, 5)
+        upload_task.cancel()
+        await asyncio.sleep(0.05)
+
+        self.assertFalse(upload_task.done())
+        self.assertFalse(finished.is_set())
+
+        release.set()
+        with self.assertRaises(asyncio.CancelledError):
+            await upload_task
+
+        self.assertTrue(finished.is_set())
+
     async def test_async_request_uses_connect_and_read_timeouts_for_uploads(self):
         session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
         client = AsyncTransloadit("key", "secret", service=self.server.base_url, session=session)
@@ -1250,8 +1359,24 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         timeout = session.calls[0][1]["timeout"]
         self.assertIsNone(timeout.total)
         self.assertEqual(timeout.sock_connect, 60)
-        self.assertIsNone(timeout.sock_read)
+        self.assertEqual(timeout.sock_read, 60)
         self.assertEqual(session.calls[0][1]["data"]._fields[2][1]["Content-Type"], "image/jpeg")
+
+    async def test_async_request_upload_does_not_close_caller_stream(self):
+        fixture_path = Path(__file__).resolve().parents[1] / "LICENSE"
+        upload = fixture_path.open("rb")
+
+        try:
+            upload_payload = payload.get_payload(_NonClosingUploadStream(upload))
+            await upload_payload.close()
+            await asyncio.sleep(0.05)
+
+            self.assertFalse(upload.closed)
+            upload.seek(0)
+            self.assertEqual(upload.read(5), fixture_path.read_bytes()[:5])
+        finally:
+            if not upload.closed:
+                upload.close()
 
     async def test_async_request_payload_preserves_custom_auth_constraints(self):
         client = AsyncTransloadit("key", "secret", service=self.server.base_url)

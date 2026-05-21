@@ -9,10 +9,9 @@ class Response:
     Transloadit http Response Object
 
     :Attributes:
-        - data (dict):
-            Dictionary representation of the returned JSON data. For async
-            responses, this can also be preloaded data provided by the async
-            request layer.
+        - data (dict, str, bytes, None):
+            Parsed JSON data, text fallback, raw bytes for undecodable async
+            responses, or None when no response data is available.
         - status_code (int):
             HTTP response status code
         - headers (dict):

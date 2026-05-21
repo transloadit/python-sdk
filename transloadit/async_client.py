@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import time
 from typing import List, Optional, Union
-from urllib.parse import quote_plus, urlencode
+from urllib.parse import quote, quote_plus, urlencode
 
 from . import async_assembly, async_request, async_template
 
@@ -11,6 +11,10 @@ def _stringify_url_param(value: Union[str, int, float, bool]) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     return str(value)
+
+
+def _quote_path_segment(value: str) -> str:
+    return quote(str(value), safe="")
 
 
 class AsyncTransloadit:
@@ -61,7 +65,7 @@ class AsyncTransloadit:
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
+        url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
         return await self.request.get(url)
 
     async def list_assemblies(self, params: dict = None):
@@ -77,14 +81,14 @@ class AsyncTransloadit:
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
+        url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
         return await self.request.delete(url)
 
     async def get_template(self, template_id: str):
         """
         Get the template specified by the 'template_id'.
         """
-        return await self.request.get(f"/templates/{template_id}")
+        return await self.request.get(f"/templates/{_quote_path_segment(template_id)}")
 
     async def list_templates(self, params: Optional[dict] = None):
         """
@@ -102,13 +106,13 @@ class AsyncTransloadit:
         """
         Update the template specified by the 'template_id'.
         """
-        return await self.request.put(f"/templates/{template_id}", data=data)
+        return await self.request.put(f"/templates/{_quote_path_segment(template_id)}", data=data)
 
     async def delete_template(self, template_id: str):
         """
         Delete the template specified by the 'template_id'.
         """
-        return await self.request.delete(f"/templates/{template_id}")
+        return await self.request.delete(f"/templates/{_quote_path_segment(template_id)}")
 
     async def get_bill(self, month: int, year: int):
         """

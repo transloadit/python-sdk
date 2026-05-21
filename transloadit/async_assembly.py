@@ -78,7 +78,16 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
             ).upload()
 
     async def _do_tus_upload_async(self, assembly_url, tus_url, retries):
-        await asyncio.to_thread(self._do_tus_upload, assembly_url, tus_url, retries)
+        upload_task = asyncio.create_task(
+            asyncio.to_thread(self._do_tus_upload, assembly_url, tus_url, retries)
+        )
+        try:
+            await asyncio.shield(upload_task)
+        except asyncio.CancelledError:
+            try:
+                await asyncio.shield(upload_task)
+            finally:
+                raise
 
     async def create(self, wait=False, resumable=True, retries=3):
         """
@@ -104,6 +113,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
             if response_data is None:
                 if response.status_code >= 400:
                     raise RuntimeError(f"Unexpected non-JSON response ({response.status_code}).")
+                if resumable and self.files:
+                    raise RuntimeError("Resumable assembly response is missing upload URLs.")
                 return response
 
             if self._rate_limit_reached(response_data):
@@ -114,9 +125,9 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                             "Cannot retry non-resumable upload because these file streams are not seekable: "
                             f"{missing}"
                         )
-                    await asyncio.sleep(response_data.get("info", {}).get("retryIn", 1))
                     if not resumable:
                         self._rewind_files(file_positions)
+                    await asyncio.sleep(response_data.get("info", {}).get("retryIn", 1))
                     retries -= 1
                     continue
                 return response
@@ -176,7 +187,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         return is_aborted or is_canceled or is_completed or (is_failed and not (is_fetch_rate_limit or is_submit_rate_limit))
 
     def _rate_limit_reached(self, response_data):
-        return response_data.get("error") in {
+        error = response_data.get("error")
+        return isinstance(error, str) and error in {
             "RATE_LIMIT_REACHED",
             "ASSEMBLY_STATUS_FETCHING_RATE_LIMIT_REACHED",
         }

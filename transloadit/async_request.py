@@ -1,4 +1,5 @@
 import asyncio
+import io
 import mimetypes
 import os
 import copy
@@ -9,6 +10,7 @@ from types import MappingProxyType
 from datetime import datetime, timedelta, timezone
 
 import aiohttp
+from requests.structures import CaseInsensitiveDict
 
 from . import __version__
 from .response import Response
@@ -26,6 +28,42 @@ def _get_upload_filename(file_stream, fallback):
         if filename:
             return filename
     return fallback
+
+
+class _NonClosingUploadStream(io.IOBase):
+    def __init__(self, file_stream):
+        self._file_stream = file_stream
+
+    @property
+    def name(self):
+        return getattr(self._file_stream, "name", None)
+
+    def close(self):
+        pass
+
+    def fileno(self):
+        return self._file_stream.fileno()
+
+    def read(self, *args):
+        return self._file_stream.read(*args)
+
+    def readable(self):
+        return True
+
+    def readline(self, *args):
+        return self._file_stream.readline(*args)
+
+    def readlines(self, *args):
+        return self._file_stream.readlines(*args)
+
+    def seek(self, *args):
+        return self._file_stream.seek(*args)
+
+    def seekable(self):
+        return hasattr(self._file_stream, "seek")
+
+    def tell(self):
+        return self._file_stream.tell()
 
 
 class AsyncRequest:
@@ -75,12 +113,11 @@ class AsyncRequest:
                 self._session = None
 
     def _timeout(self, files=False):
-        # Large uploads can legitimately wait longer than TIMEOUT for the first response byte.
-        sock_read = None if files else TIMEOUT
+        # Keep total disabled for large request bodies, but still cap stalled responses.
         return aiohttp.ClientTimeout(
             total=None,
             sock_connect=TIMEOUT,
-            sock_read=sock_read,
+            sock_read=TIMEOUT,
         )
 
     def _normalize_payload(self, data):
@@ -117,7 +154,7 @@ class AsyncRequest:
             return Response(
                 data=await self._read_response_data(response),
                 status_code=response.status,
-                headers=dict(response.headers),
+                headers=CaseInsensitiveDict(response.headers),
             )
 
     async def post(self, path, data=None, extra_data=None, files=None):
@@ -137,7 +174,12 @@ class AsyncRequest:
             for key, file_stream in files.items():
                 filename = _get_upload_filename(file_stream, key)
                 content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-                form.add_field(key, file_stream, filename=filename, content_type=content_type)
+                form.add_field(
+                    key,
+                    _NonClosingUploadStream(file_stream),
+                    filename=filename,
+                    content_type=content_type,
+                )
             payload = form
         else:
             payload = self._normalize_payload(data)
@@ -151,7 +193,7 @@ class AsyncRequest:
             return Response(
                 data=await self._read_response_data(response),
                 status_code=response.status,
-                headers=dict(response.headers),
+                headers=CaseInsensitiveDict(response.headers),
             )
 
     async def put(self, path, data=None):
@@ -169,7 +211,7 @@ class AsyncRequest:
             return Response(
                 data=await self._read_response_data(response),
                 status_code=response.status,
-                headers=dict(response.headers),
+                headers=CaseInsensitiveDict(response.headers),
             )
 
     async def delete(self, path, data=None):
@@ -187,7 +229,7 @@ class AsyncRequest:
             return Response(
                 data=await self._read_response_data(response),
                 status_code=response.status,
-                headers=dict(response.headers),
+                headers=CaseInsensitiveDict(response.headers),
             )
 
     def _to_payload(self, data):
