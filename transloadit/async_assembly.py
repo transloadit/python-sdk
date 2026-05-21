@@ -4,9 +4,7 @@ import math
 from tusclient import client as tus
 
 from . import optionbuilder
-from .async_request import _get_upload_filename
-
-MAX_RETRY_DELAY_SECONDS = 60
+from .upload import get_upload_filename
 
 
 class AsyncAssembly(optionbuilder.OptionBuilder):
@@ -67,7 +65,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
     def _do_tus_upload(self, assembly_url, tus_url, retries):
         tus_client = tus.TusClient(tus_url)
         for key, file_stream in self.files.items():
-            filename = _get_upload_filename(file_stream, key)
+            filename = get_upload_filename(file_stream, key)
             metadata = {
                 "assembly_url": assembly_url,
                 "fieldname": key,
@@ -81,9 +79,20 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
             ).upload()
 
     async def _do_tus_upload_async(self, assembly_url, tus_url, retries):
-        # tuspy is synchronous: cancelling this awaiter cannot stop a worker thread already in flight.
-        # Returning cancellation promptly is safer than making callers wait on a stalled sync upload.
-        await asyncio.to_thread(self._do_tus_upload, assembly_url, tus_url, retries)
+        # tuspy is synchronous, so cancellation cannot abort an upload already running in
+        # the worker thread. Wait for the worker to release file streams before letting
+        # cancellation unwind caller-owned file context managers.
+        upload_task = asyncio.create_task(
+            asyncio.to_thread(self._do_tus_upload, assembly_url, tus_url, retries)
+        )
+        try:
+            await asyncio.shield(upload_task)
+        except asyncio.CancelledError:
+            try:
+                await upload_task
+            except Exception:
+                pass
+            raise
 
     async def create(self, wait=False, resumable=True, retries=3):
         """
@@ -135,7 +144,9 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
 
             if resumable and self.files:
                 if not assembly_url or not tus_url:
-                    raise RuntimeError("Resumable assembly response is missing upload URLs.")
+                    raise RuntimeError(
+                        f"Resumable assembly response is missing upload URLs: {response_data!r}"
+                    )
                 await self._do_tus_upload_async(assembly_url, tus_url, tus_retries)
 
             if wait:
@@ -150,6 +161,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                         if remaining_rate_limit_retries <= 0:
                             return poll_response
                         remaining_rate_limit_retries -= 1
+                    else:
+                        remaining_rate_limit_retries = poll_retries
                     sleep_time = self._retry_delay(poll_data)
                     await asyncio.sleep(sleep_time)
                     poll_response = await self.transloadit.get_assembly(
@@ -176,7 +189,12 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         is_failed = error is not None
         is_fetch_rate_limit = error == "ASSEMBLY_STATUS_FETCHING_RATE_LIMIT_REACHED"
         is_submit_rate_limit = error == "RATE_LIMIT_REACHED"
-        return is_aborted or is_canceled or is_completed or (is_failed and not (is_fetch_rate_limit or is_submit_rate_limit))
+        return (
+            is_aborted
+            or is_canceled
+            or is_completed
+            or (is_failed and not (is_fetch_rate_limit or is_submit_rate_limit))
+        )
 
     def _rate_limit_reached(self, response_data):
         error = response_data.get("error")
@@ -195,4 +213,4 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
             return 1
         if not math.isfinite(delay):
             return 1
-        return min(max(delay, 0), MAX_RETRY_DELAY_SECONDS)
+        return max(delay, 0)

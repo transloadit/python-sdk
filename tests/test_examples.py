@@ -59,6 +59,36 @@ def test_smart_cdn_example_runs_without_network():
     assert "sig=sha256%3A" in result.stdout
 
 
+def test_video_translator_download_uses_timeout(tmp_path, monkeypatch):
+    namespace = runpy.run_path(
+        str(EXAMPLES_ROOT / "video_translator.py"),
+        run_name="__example_import__",
+    )
+    calls = []
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"words":[]}'
+
+    def urlopen(url, timeout):
+        calls.append((url, timeout))
+        return _Response()
+
+    monkeypatch.setattr(namespace["urllib"].request, "urlopen", urlopen)
+    output_path = tmp_path / "transcribe_json.json"
+
+    namespace["download_url"]("https://example.com/transcribe_json.json", output_path, timeout=12)
+
+    assert calls == [("https://example.com/transcribe_json.json", 12)]
+    assert output_path.read_text() == '{"words":[]}'
+
+
 @pytest.mark.e2e
 @pytest.mark.skipif(not _is_e2e_enabled(), reason="Set PYTHON_SDK_E2E=1 to run live examples")
 @pytest.mark.skipif(

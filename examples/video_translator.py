@@ -50,6 +50,11 @@ def create_assembly_with_template(client, template_id, file_path=None, fields=No
         return assembly.create(retries=5, wait=True)
 
 
+def download_url(url, path, timeout=60):
+    with urllib.request.urlopen(url, timeout=timeout) as response:
+        Path(path).write_bytes(response.read())
+
+
 def build_ssml_and_ffmpeg(words):
     if not words:
         raise RuntimeError("Transcription result did not contain any words.")
@@ -104,7 +109,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
         transcript_path = tmpdir_path / "transcribe_json.json"
-        urllib.request.urlretrieve(transcription_url, transcript_path)
+        download_url(transcription_url, transcript_path)
         with transcript_path.open() as transcript:
             transcript_data = json.load(transcript)
 

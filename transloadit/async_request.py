@@ -1,33 +1,23 @@
 import asyncio
-import io
-import mimetypes
-import os
 import copy
 import hashlib
 import hmac
+import io
 import json
-from types import MappingProxyType
+import mimetypes
+import os
 from datetime import datetime, timedelta, timezone
+from types import MappingProxyType
 
 import aiohttp
 from requests.structures import CaseInsensitiveDict
 
 from . import __version__
+from .api_url import should_sign_api_url
 from .response import Response
+from .upload import get_upload_filename
 
 TIMEOUT = 60
-
-
-def _get_upload_filename(file_stream, fallback):
-    name = getattr(file_stream, "name", None)
-    if isinstance(name, (bytes, os.PathLike)):
-        name = os.fsdecode(name)
-
-    if isinstance(name, str):
-        filename = os.path.basename(name)
-        if filename:
-            return filename
-    return fallback
 
 
 class _NonClosingUploadStream(io.IOBase):
@@ -48,7 +38,13 @@ class _NonClosingUploadStream(io.IOBase):
         return self._file_stream.read(*args)
 
     def readable(self):
-        return True
+        readable = getattr(self._file_stream, "readable", None)
+        if callable(readable):
+            try:
+                return readable()
+            except (OSError, ValueError):
+                return False
+        return hasattr(self._file_stream, "read")
 
     def readline(self, *args):
         return self._file_stream.readline(*args)
@@ -118,7 +114,7 @@ class AsyncRequest:
                 await self._session.close()
                 self._session = None
 
-    def _timeout(self, files=False):
+    def _timeout(self):
         # Keep total disabled for large request bodies, but still cap stalled responses.
         return aiohttp.ClientTimeout(
             total=None,
@@ -135,10 +131,7 @@ class AsyncRequest:
             for item in values:
                 if item is None:
                     continue
-                if isinstance(item, bool):
-                    normalized.append((key, "true" if item else "false"))
-                else:
-                    normalized.append((key, str(item)))
+                normalized.append((key, str(item)))
         return normalized
 
     async def _read_response_data(self, response):
@@ -158,7 +151,7 @@ class AsyncRequest:
         session = await self._ensure_session()
         async with session.get(
             url,
-            params=self._to_payload(params),
+            params=self._to_request_payload(url, params),
             headers=self._headers(),
             timeout=self._timeout(),
         ) as response:
@@ -174,7 +167,7 @@ class AsyncRequest:
         """
         url = self._get_full_url(path)
         session = await self._ensure_session()
-        data = self._to_payload(data)
+        data = self._to_request_payload(url, data) or {}
         if extra_data:
             data.update(extra_data)
 
@@ -184,7 +177,7 @@ class AsyncRequest:
                 form.add_field(key, value)
 
             for key, file_stream in files.items():
-                filename = _get_upload_filename(file_stream, key)
+                filename = get_upload_filename(file_stream, key)
                 content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
                 form.add_field(
                     key,
@@ -200,7 +193,7 @@ class AsyncRequest:
             url,
             data=payload,
             headers=self._headers(),
-            timeout=self._timeout(files=bool(files)),
+            timeout=self._timeout(),
         ) as response:
             return Response(
                 data=await self._read_response_data(response),
@@ -214,7 +207,7 @@ class AsyncRequest:
         """
         url = self._get_full_url(path)
         session = await self._ensure_session()
-        data = self._normalize_payload(self._to_payload(data))
+        data = self._normalize_payload(self._to_request_payload(url, data) or {})
         async with session.put(
             url,
             data=data,
@@ -233,7 +226,7 @@ class AsyncRequest:
         """
         url = self._get_full_url(path)
         session = await self._ensure_session()
-        data = self._normalize_payload(self._to_payload(data))
+        data = self._normalize_payload(self._to_request_payload(url, data) or {})
         async with session.delete(
             url,
             data=data,
@@ -249,7 +242,9 @@ class AsyncRequest:
     def _to_payload(self, data):
         data = copy.deepcopy(data or {})
         expiry = datetime.now(timezone.utc) + timedelta(seconds=self.transloadit.duration)
-        auth = data.get("auth") if isinstance(data.get("auth"), dict) else {}
+        if "auth" in data and not isinstance(data["auth"], dict):
+            raise ValueError("auth must be a dictionary when provided.")
+        auth = data.get("auth") or {}
         auth.update({
             "key": self.transloadit.auth_key,
             "expires": expiry.strftime("%Y/%m/%d %H:%M:%S+00:00"),
@@ -257,6 +252,11 @@ class AsyncRequest:
         data["auth"] = auth
         json_data = json.dumps(data)
         return {"params": json_data, "signature": self._sign_data(json_data)}
+
+    def _to_request_payload(self, url, data):
+        if should_sign_api_url(url, self.transloadit.service):
+            return self._to_payload(data)
+        return copy.deepcopy(data) if data else None
 
     def _sign_data(self, message):
         hash_string = hmac.new(

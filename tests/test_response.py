@@ -21,6 +21,18 @@ class ResponseTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers, {"X-Test": "1"})
 
+    def test_response_uses_text_fallback_for_sync_non_json_responses(self):
+        raw = mock.Mock()
+        raw.json.side_effect = ValueError("not json")
+        raw.text = "bad gateway"
+        raw.status_code = 502
+        raw.headers = {"Content-Type": "text/html"}
+
+        response = Response(raw)
+
+        self.assertEqual(response.data, "bad gateway")
+        self.assertEqual(response.status_code, 502)
+
     def test_response_lazily_rehydrates_data_when_missing(self):
         raw = mock.Mock()
         raw.json.return_value = {"ok": "lazy"}

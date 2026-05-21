@@ -1,16 +1,9 @@
-import hashlib
-import hmac
-import time
-from typing import List, Optional, Union
-from urllib.parse import quote, quote_plus, urlencode
+from typing import Optional
+from urllib.parse import quote
 
 from . import async_assembly, async_request, async_template
-
-
-def _stringify_url_param(value: Union[str, int, float, bool]) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
+from .api_url import normalize_service_url, require_path_id
+from .smart_cdn import URL_PARAM_VALUES, build_signed_smart_cdn_url
 
 
 def _quote_path_segment(value: str) -> str:
@@ -30,10 +23,7 @@ class AsyncTransloadit:
         duration: int = 300,
         session=None,
     ):
-        if not service.startswith(("http://", "https://")):
-            service = "https://" + service
-
-        self.service = service
+        self.service = normalize_service_url(service)
         self.auth_key = auth_key
         self.auth_secret = auth_secret
         self.duration = duration
@@ -88,6 +78,7 @@ class AsyncTransloadit:
         """
         Get the template specified by the 'template_id'.
         """
+        template_id = require_path_id(template_id, "template_id")
         return await self.request.get(f"/templates/{_quote_path_segment(template_id)}")
 
     async def list_templates(self, params: Optional[dict] = None):
@@ -106,12 +97,14 @@ class AsyncTransloadit:
         """
         Update the template specified by the 'template_id'.
         """
+        template_id = require_path_id(template_id, "template_id")
         return await self.request.put(f"/templates/{_quote_path_segment(template_id)}", data=data)
 
     async def delete_template(self, template_id: str):
         """
         Delete the template specified by the 'template_id'.
         """
+        template_id = require_path_id(template_id, "template_id")
         return await self.request.delete(f"/templates/{_quote_path_segment(template_id)}")
 
     async def get_bill(self, month: int, year: int):
@@ -125,44 +118,18 @@ class AsyncTransloadit:
         workspace: str,
         template: str,
         input: str,
-        url_params: Optional[dict[str, Union[str, int, float, bool, List[Union[str, int, float, bool]], None]]] = None,
+        url_params: Optional[dict[str, URL_PARAM_VALUES]] = None,
         expires_at_ms: Optional[int] = None,
     ) -> str:
         """
         Construct a signed Smart CDN URL.
         """
-        workspace_slug = quote_plus(workspace)
-        template_slug = quote_plus(template)
-        input_field = quote_plus(input)
-
-        expiry = expires_at_ms if expires_at_ms is not None else int(time.time() * 1000) + 60 * 60 * 1000
-
-        params = []
-        if url_params:
-            for k, v in url_params.items():
-                if v is None:
-                    continue
-                elif isinstance(v, (str, int, float, bool)):
-                    params.append((k, _stringify_url_param(v)))
-                elif isinstance(v, (list, tuple)):
-                    params.append((k, [_stringify_url_param(vv) for vv in v]))
-                else:
-                    raise ValueError(
-                        f"URL parameter values must be strings, numbers, booleans, arrays, or None. Got {type(v)} for {k}"
-                    )
-
-        params.append(("auth_key", self.auth_key))
-        params.append(("exp", str(expiry)))
-        sorted_params = sorted(params, key=lambda x: x[0])
-        query_string = urlencode(sorted_params, doseq=True)
-
-        string_to_sign = f"{workspace_slug}/{template_slug}/{input_field}?{query_string}"
-        algorithm = "sha256"
-
-        signature = algorithm + ":" + hmac.new(
-            self.auth_secret.encode("utf-8"),
-            string_to_sign.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
-
-        return f"https://{workspace_slug}.tlcdn.com/{template_slug}/{input_field}?{query_string}&sig={quote_plus(signature)}"
+        return build_signed_smart_cdn_url(
+            auth_key=self.auth_key,
+            auth_secret=self.auth_secret,
+            workspace=workspace,
+            template=template,
+            input=input,
+            url_params=url_params,
+            expires_at_ms=expires_at_ms,
+        )

@@ -1,9 +1,9 @@
-import os
 from time import sleep
 
 from tusclient import client as tus
 
 from . import optionbuilder
+from .upload import get_upload_filename
 
 
 class Assembly(optionbuilder.OptionBuilder):
@@ -69,7 +69,7 @@ class Assembly(optionbuilder.OptionBuilder):
         metadata = {"assembly_url": assembly_url}
         for key in self.files:
             metadata["fieldname"] = key
-            metadata["filename"] = os.path.basename(self.files[key].name)
+            metadata["filename"] = get_upload_filename(self.files[key], key)
             tus_client.uploader(
                 file_stream=self.files[key],
                 chunk_size=5 * 1024 * 1024,
@@ -96,15 +96,27 @@ class Assembly(optionbuilder.OptionBuilder):
             response = self.transloadit.request.post(
                 "/assemblies", extra_data=extra_data, data=data
             )
-            self._do_tus_upload(
-                response.data.get("assembly_ssl_url"),
-                response.data.get("tus_url"),
-                retries,
-            )
         else:
             response = self.transloadit.request.post(
                 "/assemblies", data=data, files=self.files
             )
+
+        if self._rate_limit_reached(response) and retries:
+            # wait till rate limit is expired
+            sleep(response.data.get("info", {}).get("retryIn", 1))
+            return self.create(wait, resumable, retries - 1)
+
+        if resumable and isinstance(response.data, dict):
+            if response.data.get("error") is not None:
+                return response
+            if self.files:
+                assembly_url = response.data.get("assembly_ssl_url")
+                tus_url = response.data.get("tus_url")
+                if not assembly_url or not tus_url:
+                    raise RuntimeError(
+                        f"Resumable assembly response is missing upload URLs: {response.data!r}"
+                    )
+                self._do_tus_upload(assembly_url, tus_url, retries)
 
         if wait:
             while not self._assembly_finished(response):
@@ -116,11 +128,6 @@ class Assembly(optionbuilder.OptionBuilder):
                 response = self.transloadit.get_assembly(
                     assembly_url=response.data.get("assembly_ssl_url")
                 )
-
-        if self._rate_limit_reached(response) and retries:
-            # wait till rate limit is expired
-            sleep(response.data.get("info", {}).get("retryIn", 1))
-            return self.create(wait, resumable, retries - 1)
 
         return response
 
@@ -135,4 +142,7 @@ class Assembly(optionbuilder.OptionBuilder):
         return is_aborted or is_canceled or is_completed or (is_failed and not is_fetch_rate_limit)
 
     def _rate_limit_reached(self, response):
-        return response.data.get("error") == "RATE_LIMIT_REACHED"
+        return (
+            isinstance(response.data, dict)
+            and response.data.get("error") == "RATE_LIMIT_REACHED"
+        )

@@ -27,17 +27,26 @@ class Response:
     def __init__(self, response=None, data=_MISSING, status_code=_MISSING, headers=_MISSING):
         self._response = response
         if data is _MISSING and response is not None:
-            data = response.json()
+            data = self._read_sync_response_data()
         self._data = data
         self._status_code = status_code
         self._headers = headers
+
+    def _read_sync_response_data(self):
+        try:
+            return self._response.json()
+        except ValueError:
+            try:
+                return self._response.text
+            except UnicodeDecodeError:
+                return self._response.content
 
     @property
     def data(self):
         if self._data is _MISSING:
             if self._response is None:
                 return None
-            self._data = self._response.json()
+            self._data = self._read_sync_response_data()
         return self._data
 
     @data.setter

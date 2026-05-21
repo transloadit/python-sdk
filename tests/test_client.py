@@ -62,6 +62,11 @@ class ClientTest(unittest.TestCase):
         if expected_url is not None:
             self.assertEqual(expected_url, url, message or 'URL should match Node.js reference implementation')
 
+    def test_rejects_invalid_service_url(self):
+        for service in ("", "   ", "https://", "ftp://api2.transloadit.com"):
+            with self.assertRaises(ValueError):
+                Transloadit("key", "secret", service=service)
+
     @requests_mock.Mocker()
     def test_get_assembly(self, mock):
         id_ = "abcdef12345"
@@ -84,6 +89,23 @@ class ClientTest(unittest.TestCase):
                 mock.call('/templates/template%2Fwith%3Fchars'),
             ],
         )
+
+    def test_rejects_empty_template_ids(self):
+        invalid_ids = ("", None)
+        with mock.patch.object(self.transloadit.request, "get"):
+            for template_id in invalid_ids:
+                with self.assertRaises(ValueError):
+                    self.transloadit.get_template(template_id)
+
+        with mock.patch.object(self.transloadit.request, "put"):
+            for template_id in invalid_ids:
+                with self.assertRaises(ValueError):
+                    self.transloadit.update_template(template_id, {"name": "foo"})
+
+        with mock.patch.object(self.transloadit.request, "delete"):
+            for template_id in invalid_ids:
+                with self.assertRaises(ValueError):
+                    self.transloadit.delete_template(template_id)
 
     @requests_mock.Mocker()
     def test_list_assemblies(self, mock):
@@ -287,3 +309,19 @@ class ClientTest(unittest.TestCase):
         # For parity test, set the exact expiry time to match Node.js
         params['expire_at_ms'] = expiry
         self.assert_parity_with_node(url, params)
+
+    def test_get_signed_smart_cdn_url_rejects_invalid_workspace_and_reserved_params(self):
+        client = Transloadit("test-key", "test-secret")
+
+        for workspace in ("", "-workspace", "workspace-", "Acme Workspace", "bad.workspace"):
+            with self.assertRaises(ValueError):
+                client.get_signed_smart_cdn_url(workspace, "template", "file.jpg")
+
+        for reserved_key in ("auth_key", "exp", "sig"):
+            with self.assertRaises(ValueError):
+                client.get_signed_smart_cdn_url(
+                    "workspace",
+                    "template",
+                    "file.jpg",
+                    {reserved_key: "override"},
+                )
