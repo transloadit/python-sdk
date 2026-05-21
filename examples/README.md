@@ -16,6 +16,7 @@ poetry run python examples/async_image_resize.py
 poetry run python examples/resumable_upload.py
 poetry run python examples/assembly_with_template.py
 poetry run python examples/template_lifecycle.py
+poetry run python examples/async_template_lifecycle.py
 poetry run python examples/smart_cdn_url.py
 ```
 

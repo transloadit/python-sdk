@@ -91,6 +91,6 @@ Examples
 For copy/paste runnable examples, take a look at `examples/`_.
 
 The examples cover sync uploads, async uploads, resumable uploads, Template usage,
-Template lifecycle management, and Smart CDN URL signing.
+sync and async Template lifecycle management, and Smart CDN URL signing.
 
 .. _examples/: https://github.com/transloadit/python-sdk/tree/HEAD/examples

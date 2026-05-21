@@ -15,6 +15,7 @@ QUICKSTART_EXAMPLES = [
     "resumable_upload.py",
     "assembly_with_template.py",
     "template_lifecycle.py",
+    "async_template_lifecycle.py",
     "smart_cdn_url.py",
 ]
 
