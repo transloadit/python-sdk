@@ -1,6 +1,7 @@
 ### 2.0.0 / 2026-05-20 ###
 * **Breaking Change**: Raised the supported Python runtime floor from 3.9+ to 3.12+ so the SDK no longer has to retain vulnerable locked dependency versions for EOL Python 3.9 or depend on tooling lines that are already dropping older runtime support.
 * Added explicit asyncio support with `AsyncTransloadit`, async request/assembly/template helpers, and `asyncio.sleep`-based polling. Resumable uploads stay on the existing TUS client, but run through `asyncio.to_thread()` so the event loop remains responsive instead of pretending the sync uploader is natively async.
+* Hardened sync and async request handling by preserving custom `auth` constraints, quoting path IDs, and keeping explicit/custom service URLs compatible with local, CI, and [Transloadit Gateway](https://github.com/transloadit/gateway) deployments.
 * Raised the runtime HTTP stack to patched versions by requiring `requests` 2.33+ and adding an explicit `urllib3` 2.7+ floor.
 * Updated development and documentation tooling, including `pytest` 9.0.3, `Sphinx` 9.1, `sphinx-autobuild` 2025.8, `coverage` 7.14, `tox` 4.54, and `requests-mock` 1.12.
 * Updated CI and local Docker test coverage to a representative Python 3.12, 3.13, and 3.14 matrix.

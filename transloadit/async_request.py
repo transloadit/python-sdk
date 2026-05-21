@@ -8,7 +8,6 @@ import hmac
 import json
 from types import MappingProxyType
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlparse
 
 import aiohttp
 from requests.structures import CaseInsensitiveDict
@@ -17,10 +16,6 @@ from . import __version__
 from .response import Response
 
 TIMEOUT = 60
-
-
-def _is_transloadit_host(hostname):
-    return hostname == "transloadit.com" or hostname.endswith(".transloadit.com")
 
 
 def _get_upload_filename(file_stream, fallback):
@@ -271,15 +266,5 @@ class AsyncRequest:
 
     def _get_full_url(self, url):
         if url.startswith(("http://", "https://")):
-            service = urlparse(self.transloadit.service)
-            target = urlparse(url)
-            same_origin = (target.scheme, target.netloc) == (service.scheme, service.netloc)
-            transloadit_origin = (
-                target.scheme == service.scheme
-                and _is_transloadit_host(service.hostname or "")
-                and _is_transloadit_host(target.hostname or "")
-            )
-            if not (same_origin or transloadit_origin):
-                raise ValueError("Absolute API URLs must use the configured Transloadit service origin.")
             return url
         return self.transloadit.service + url

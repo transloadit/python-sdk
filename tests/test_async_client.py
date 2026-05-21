@@ -365,11 +365,22 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await client.cancel_assembly()
 
-        with self.assertRaises(ValueError):
-            await client.get_assembly(assembly_url="https://example.com/assemblies/abc123")
-
-        with self.assertRaises(ValueError):
-            await client.cancel_assembly(assembly_url="https://example.com/assemblies/abc123")
+        external_session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
+        external_client = AsyncTransloadit(
+            "key",
+            "secret",
+            service="https://api2.transloadit.com",
+            session=external_session,
+        )
+        await external_client.get_assembly(assembly_url="https://example.com/assemblies/abc123")
+        await external_client.cancel_assembly(assembly_url="https://example.com/assemblies/abc123")
+        self.assertEqual(
+            [call[0] for call in external_session.calls],
+            [
+                "https://example.com/assemblies/abc123",
+                "https://example.com/assemblies/abc123",
+            ],
+        )
 
         transloadit_session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
         transloadit_client = AsyncTransloadit(
@@ -1037,6 +1048,42 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         post_mock.assert_awaited_once()
         self.assertEqual(calls, [])
 
+    async def test_async_assembly_resumable_response_allows_configured_service_tus_url(self):
+        calls = []
+
+        class _TusClient:
+            def __init__(self, tus_url):
+                calls.append(("client", tus_url))
+
+            def uploader(self, **kwargs):
+                calls.append(("upload", kwargs["metadata"]))
+                return self
+
+            def upload(self):
+                calls.append(("uploaded",))
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            assembly = client.new_assembly()
+            assembly.add_file(io.BytesIO(b"payload"))
+
+            response = Response(
+                data={
+                    "assembly_ssl_url": f"{self.server.base_url}/assemblies/assembly-123",
+                    "tus_url": "https://example.com/uploads",
+                },
+                status_code=200,
+                headers={},
+            )
+
+            with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=response)) as post_mock:
+                with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                    await assembly.create(resumable=True)
+
+        post_mock.assert_awaited_once()
+        self.assertEqual(calls[0], ("client", "https://example.com/uploads"))
+        self.assertEqual(calls[1][0], "upload")
+        self.assertEqual(calls[2], ("uploaded",))
+
     async def test_async_assembly_wait_returns_response_without_assembly_url(self):
         incomplete_response = Response(
             data={"ok": "ASSEMBLY_PROCESSING"},
@@ -1333,6 +1380,18 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         self.assertFalse(assembly._rate_limit_reached({"error": ["RATE_LIMIT_REACHED"]}))
         self.assertFalse(assembly._rate_limit_reached({"error": {"code": "RATE_LIMIT_REACHED"}}))
+
+    async def test_async_assembly_retry_delay_sanitizes_response_info(self):
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+        assembly = client.new_assembly()
+
+        self.assertEqual(assembly._retry_delay({}), 1)
+        self.assertEqual(assembly._retry_delay({"info": None}), 1)
+        self.assertEqual(assembly._retry_delay({"info": {"retryIn": "bad"}}), 1)
+        self.assertEqual(assembly._retry_delay({"info": {"retryIn": float("nan")}}), 1)
+        self.assertEqual(assembly._retry_delay({"info": {"retryIn": -2}}), 0)
+        self.assertEqual(assembly._retry_delay({"info": {"retryIn": 0.25}}), 0.25)
+        self.assertEqual(assembly._retry_delay({"info": {"retryIn": 9999}}), 60)
 
     async def test_async_tus_upload_cancellation_returns_before_thread_finishes(self):
         client = AsyncTransloadit("key", "secret", service=self.server.base_url)

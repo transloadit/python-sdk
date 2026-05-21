@@ -3,7 +3,6 @@ import hmac
 import json
 import copy
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlparse
 
 import requests
 
@@ -11,11 +10,6 @@ from .response import as_response
 from . import __version__
 
 TIMEOUT = 60
-
-
-def _is_transloadit_host(hostname):
-    return hostname == "transloadit.com" or hostname.endswith(".transloadit.com")
-
 
 class Request:
     """
@@ -136,16 +130,6 @@ class Request:
 
     def _get_full_url(self, url):
         if url.startswith(("http://", "https://")):
-            service = urlparse(self.transloadit.service)
-            target = urlparse(url)
-            same_origin = (target.scheme, target.netloc) == (service.scheme, service.netloc)
-            transloadit_origin = (
-                target.scheme == service.scheme
-                and _is_transloadit_host(service.hostname or "")
-                and _is_transloadit_host(target.hostname or "")
-            )
-            if not (same_origin or transloadit_origin):
-                raise ValueError("Absolute API URLs must use the configured Transloadit service origin.")
             return url
         else:
             return self.transloadit.service + url

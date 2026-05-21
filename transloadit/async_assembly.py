@@ -1,9 +1,12 @@
 import asyncio
+import math
 
 from tusclient import client as tus
 
 from . import optionbuilder
 from .async_request import _get_upload_filename
+
+MAX_RETRY_DELAY_SECONDS = 60
 
 
 class AsyncAssembly(optionbuilder.OptionBuilder):
@@ -78,6 +81,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
             ).upload()
 
     async def _do_tus_upload_async(self, assembly_url, tus_url, retries):
+        # tuspy is synchronous: cancelling this awaiter cannot stop a worker thread already in flight.
+        # Returning cancellation promptly is safer than making callers wait on a stalled sync upload.
         await asyncio.to_thread(self._do_tus_upload, assembly_url, tus_url, retries)
 
     async def create(self, wait=False, resumable=True, retries=3):
@@ -116,7 +121,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                         )
                     if not resumable:
                         self._rewind_files(file_positions)
-                    await asyncio.sleep(response_data.get("info", {}).get("retryIn", 1))
+                    await asyncio.sleep(self._retry_delay(response_data))
                     retries -= 1
                     continue
                 return response
@@ -145,7 +150,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                         if remaining_rate_limit_retries <= 0:
                             return poll_response
                         remaining_rate_limit_retries -= 1
-                    sleep_time = poll_data.get("info", {}).get("retryIn", 1)
+                    sleep_time = self._retry_delay(poll_data)
                     await asyncio.sleep(sleep_time)
                     poll_response = await self.transloadit.get_assembly(
                         assembly_url=assembly_url
@@ -179,3 +184,15 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
             "RATE_LIMIT_REACHED",
             "ASSEMBLY_STATUS_FETCHING_RATE_LIMIT_REACHED",
         }
+
+    def _retry_delay(self, response_data):
+        info = response_data.get("info")
+        if not isinstance(info, dict):
+            return 1
+        try:
+            delay = float(info.get("retryIn", 1))
+        except (TypeError, ValueError):
+            return 1
+        if not math.isfinite(delay):
+            return 1
+        return min(max(delay, 0), MAX_RETRY_DELAY_SECONDS)
