@@ -336,7 +336,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         )
         create_params = json.loads(create_request["body"]["params"])
         self.assertEqual(create_params["name"], "foo")
-        self.assertEqual(create_params["steps"]["resize"]["robot"], "/image/resize")
+        self.assertEqual(create_params["template"]["steps"]["resize"]["robot"], "/image/resize")
 
     async def test_async_client_accepts_json_with_text_content_type(self):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:

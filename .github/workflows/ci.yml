@@ -127,7 +127,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run E2E upload test
+      - name: Run E2E tests
         env:
           TEST_NODE_PARITY: 0
         run: |

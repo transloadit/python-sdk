@@ -15,7 +15,10 @@ class TemplateTest(unittest.TestCase):
     @requests_mock.Mocker()
     def test_save(self, mock):
         url = f"{self.transloadit.service}/templates"
-        sub_body = '"robot": "/image/resize"'
+        sub_body = (
+            '"template": {"steps": {"resize": '
+            '{"width": 70, "height": 70, "robot": "/image/resize"}}}'
+        )
         mock.post(
             url,
             text='{"ok":"TEMPLATE_CREATED","template_name":"foo"}',

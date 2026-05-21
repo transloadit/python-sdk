@@ -16,5 +16,9 @@ class AsyncTemplate(optionbuilder.OptionBuilder):
         Save/Submit the template to the Transloadit server.
         """
         data = self.get_options()
-        data.update({"name": self.name})
+        steps = data.pop("steps")
+        template_content = dict(data.pop("template", {}) or {})
+        if steps:
+            template_content["steps"] = steps
+        data.update({"name": self.name, "template": template_content})
         return await self.transloadit.request.post("/templates", data=data)
