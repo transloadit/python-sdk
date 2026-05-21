@@ -22,6 +22,9 @@ poetry run python examples/smart_cdn_url.py
 `smart_cdn_url.py` only signs a URL locally. The other quickstart examples contact
 Transloadit and may create temporary Assemblies or Templates in your account.
 
+These quickstart examples run in CI against a dedicated Transloadit test account, so they
+are kept in sync with the SDK and API.
+
 ## Advanced Examples
 
 These examples require pre-created Templates and, depending on your Template, third-party
