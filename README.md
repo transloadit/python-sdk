@@ -56,9 +56,13 @@ The async client keeps polling on `asyncio.sleep`. Resumable uploads still use t
 
 If you do not use `async with`, call `await tl.aclose()` when you are done with the session.
 
-## Example
+## Examples
 
-For fully working examples, take a look at [`examples/`](https://github.com/transloadit/python-sdk/tree/HEAD/examples).
+For copy/paste runnable examples, take a look at
+[`examples/`](https://github.com/transloadit/python-sdk/tree/HEAD/examples).
+
+The examples cover sync uploads, async uploads, resumable uploads, Template usage,
+Template lifecycle management, and Smart CDN URL signing.
 
 ## Documentation
 

@@ -85,9 +85,12 @@ Async usage
 
 If you do not use ``async with``, call ``await tl.aclose()`` when you are done with the session.
 
-Example
--------
+Examples
+--------
 
-For fully working examples, take a look at `examples/`_.
+For copy/paste runnable examples, take a look at `examples/`_.
+
+The examples cover sync uploads, async uploads, resumable uploads, Template usage,
+Template lifecycle management, and Smart CDN URL signing.
 
 .. _examples/: https://github.com/transloadit/python-sdk/tree/HEAD/examples
