@@ -7,6 +7,12 @@ from urllib.parse import quote_plus, urlencode
 from . import async_assembly, async_request, async_template
 
 
+def _stringify_url_param(value: Union[str, int, float, bool]) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
 class AsyncTransloadit:
     """
     Asynchronous client interface to the Transloadit API.
@@ -133,9 +139,9 @@ class AsyncTransloadit:
                 if v is None:
                     continue
                 elif isinstance(v, (str, int, float, bool)):
-                    params.append((k, str(v)))
+                    params.append((k, _stringify_url_param(v)))
                 elif isinstance(v, (list, tuple)):
-                    params.append((k, [str(vv) for vv in v]))
+                    params.append((k, [_stringify_url_param(vv) for vv in v]))
                 else:
                     raise ValueError(
                         f"URL parameter values must be strings, numbers, booleans, arrays, or None. Got {type(v)} for {k}"

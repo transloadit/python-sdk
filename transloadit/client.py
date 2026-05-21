@@ -12,6 +12,12 @@ if typing.TYPE_CHECKING:
     from requests import Response
 
 
+def _stringify_url_param(value: Union[str, int, float, bool]) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
 class Transloadit:
     """
     This class serves as a client interface to the Transloadit API.
@@ -210,9 +216,9 @@ class Transloadit:
                 if v is None:
                     continue  # Skip None values
                 elif isinstance(v, (str, int, float, bool)):
-                    params.append((k, str(v)))
+                    params.append((k, _stringify_url_param(v)))
                 elif isinstance(v, (list, tuple)):
-                    params.append((k, [str(vv) for vv in v]))
+                    params.append((k, [_stringify_url_param(vv) for vv in v]))
                 else:
                     raise ValueError(f"URL parameter values must be strings, numbers, booleans, arrays, or None. Got {type(v)} for {k}")
 

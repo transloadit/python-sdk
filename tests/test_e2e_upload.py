@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
+from unittest import IsolatedAsyncioTestCase
 
 import pytest
 
+from transloadit.async_client import AsyncTransloadit
 from transloadit.client import Transloadit
 
 
@@ -17,38 +19,39 @@ pytestmark = [
 ]
 
 
-def test_e2e_image_resize():
+def _get_e2e_credentials():
     key = os.getenv("TRANSLOADIT_KEY")
     secret = os.getenv("TRANSLOADIT_SECRET")
 
     if not key or not secret:
         pytest.skip("TRANSLOADIT_KEY and TRANSLOADIT_SECRET must be set to run E2E tests")
 
+    return key, secret
+
+
+def _get_fixture_path():
     fixture_path = Path(__file__).resolve().parents[1] / "chameleon.jpg"
     if not fixture_path.exists():
         pytest.skip("chameleon.jpg fixture missing; run from repository root")
 
-    client = Transloadit(key, secret)
+    return fixture_path
 
-    assembly = client.new_assembly()
 
-    with fixture_path.open("rb") as upload:
-        assembly.add_file(upload)
-        assembly.add_step(
-            "resize",
-            "/image/resize",
-            {
-                "use": ":original",
-                "width": 128,
-                "height": 128,
-                "resize_strategy": "fit",
-                "format": "png",
-            },
-        )
+def _add_resize_step(assembly):
+    assembly.add_step(
+        "resize",
+        "/image/resize",
+        {
+            "use": ":original",
+            "width": 128,
+            "height": 128,
+            "resize_strategy": "fit",
+            "format": "png",
+        },
+    )
 
-        response = assembly.create(wait=True, resumable=False)
 
-    data = response.data
+def _assert_e2e_image_resize(data, fixture_path):
     assembly_ssl_url = data.get("assembly_ssl_url") or data.get("assembly_url")
     assembly_id = data.get("assembly_id")
     print(f"[python-sdk][e2e] Assembly URL: {assembly_ssl_url} (id={assembly_id})")
@@ -85,3 +88,34 @@ def test_e2e_image_resize():
         f"{width}x{height}, ssl_url={ssl_url}, basename={upload_info.get('basename')}, "
         f"filename={upload_info.get('name')}"
     )
+
+
+def test_e2e_image_resize():
+    key, secret = _get_e2e_credentials()
+    fixture_path = _get_fixture_path()
+    client = Transloadit(key, secret)
+
+    assembly = client.new_assembly()
+
+    with fixture_path.open("rb") as upload:
+        assembly.add_file(upload)
+        _add_resize_step(assembly)
+        response = assembly.create(wait=True, resumable=False)
+
+    _assert_e2e_image_resize(response.data, fixture_path)
+
+
+class TestAsyncE2EUpload(IsolatedAsyncioTestCase):
+    async def test_e2e_image_resize(self):
+        key, secret = _get_e2e_credentials()
+        fixture_path = _get_fixture_path()
+
+        async with AsyncTransloadit(key, secret) as client:
+            assembly = client.new_assembly()
+
+            with fixture_path.open("rb") as upload:
+                assembly.add_file(upload)
+                _add_resize_step(assembly)
+                response = await assembly.create(wait=True, resumable=False)
+
+        _assert_e2e_image_resize(response.data, fixture_path)

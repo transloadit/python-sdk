@@ -1,3 +1,4 @@
+import json
 import unittest
 import urllib.parse
 
@@ -37,6 +38,23 @@ class RequestTest(unittest.TestCase):
 
         response = self.request.post("/foo", data={"foo": "bar"})
         self.assertEqual(response.data["ok"], "it works")
+
+    def test_payload_preserves_custom_auth_constraints(self):
+        payload = self.request._to_payload(
+            {
+                "auth": {
+                    "max_size": 1024,
+                    "referer": "https://example.com",
+                },
+                "foo": "bar",
+            }
+        )
+
+        params = json.loads(payload["params"])
+        self.assertEqual(params["auth"]["key"], "key")
+        self.assertIn("expires", params["auth"])
+        self.assertEqual(params["auth"]["max_size"], 1024)
+        self.assertEqual(params["auth"]["referer"], "https://example.com")
 
     @requests_mock.Mocker()
     def test_put(self, mock):

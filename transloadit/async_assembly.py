@@ -130,7 +130,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
 
             if resumable and self.files:
                 if not assembly_url or not tus_url:
-                    return response
+                    raise RuntimeError("Resumable assembly response is missing upload URLs.")
                 await self._do_tus_upload_async(assembly_url, tus_url, tus_retries)
 
             if wait:

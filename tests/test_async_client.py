@@ -274,6 +274,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
             self.assertEqual(response.data["assembly_id"], "abc123")
             self.assertEqual(response.status_code, 200)
+            self.assertIs(type(response.headers), dict)
             self.assertEqual(response.headers["X-Async-Route"], "get_assembly")
 
             response = await client.list_assemblies()
@@ -380,6 +381,18 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         second_session = await client.request._ensure_session()
         self.assertIsNot(first_session, second_session)
         self.assertFalse(second_session.closed)
+
+        await client.close()
+
+    async def test_async_request_owned_sessions_trust_environment(self):
+        session = _NeverOwnedSession()
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+
+        with mock.patch("aiohttp.ClientSession", return_value=session) as session_mock:
+            ensured_session = await client.request._ensure_session()
+
+        self.assertIs(ensured_session, session)
+        session_mock.assert_called_once_with(trust_env=True)
 
         await client.close()
 
@@ -521,7 +534,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
     def test_async_signed_smart_cdn_url_matches_sync_and_rejects_bad_types(self):
         async_client = AsyncTransloadit("test-key", "test-secret")
         sync_client = Transloadit("test-key", "test-secret")
-        params = {"width": 100, "tags": ["a", "b"], "enabled": True, "skip": None}
+        params = {"width": 100, "tags": ["a", "b"], "enabled": True, "flags": [True, False], "skip": None}
 
         with mock.patch("time.time", return_value=1732550672.867):
             async_url = async_client.get_signed_smart_cdn_url(
@@ -569,6 +582,9 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertIn("width=100", async_url)
         self.assertIn("tags=a", async_url)
         self.assertIn("tags=b", async_url)
+        self.assertIn("enabled=true", async_url)
+        self.assertIn("flags=true", async_url)
+        self.assertIn("flags=false", async_url)
         self.assertIn("exp=1732550672867", explicit_async_url)
         self.assertNotIn("width=", bare_async_url)
         self.assertNotIn("skip=", async_url)
@@ -908,7 +924,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         post_mock.assert_awaited_once()
         self.assertEqual(calls, [])
 
-    async def test_async_assembly_resumable_response_without_upload_urls_skips_tus_upload(self):
+    async def test_async_assembly_resumable_response_without_upload_urls_raises_before_tus_upload(self):
         calls = []
 
         class _TusClient:
@@ -930,9 +946,9 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
             with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=incomplete_response)) as post_mock:
                 with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
-                    response = await assembly.create(resumable=True)
+                    with self.assertRaises(RuntimeError):
+                        await assembly.create(resumable=True)
 
-        self.assertIs(response, incomplete_response)
         post_mock.assert_awaited_once()
         self.assertEqual(calls, [])
 
@@ -988,7 +1004,12 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                     response = await assembly.create(resumable=True)
 
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
-        self.assertEqual(to_thread_mock.await_count, 1)
+        tus_upload_calls = [
+            call
+            for call in to_thread_mock.await_args_list
+            if getattr(call.args[0], "__name__", "") == "_do_tus_upload"
+        ]
+        self.assertEqual(len(tus_upload_calls), 1)
 
         create_request = next(
             entry for entry in self.server.requests if entry["path"] == "/assemblies" and entry["method"] == "POST"
@@ -1231,6 +1252,25 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(timeout.sock_connect, 60)
         self.assertIsNone(timeout.sock_read)
         self.assertEqual(session.calls[0][1]["data"]._fields[2][1]["Content-Type"], "image/jpeg")
+
+    async def test_async_request_payload_preserves_custom_auth_constraints(self):
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+
+        payload = client.request._to_payload(
+            {
+                "auth": {
+                    "max_size": 1024,
+                    "referer": "https://example.com",
+                },
+                "foo": "bar",
+            }
+        )
+
+        params = json.loads(payload["params"])
+        self.assertEqual(params["auth"]["key"], "key")
+        self.assertIn("expires", params["auth"])
+        self.assertEqual(params["auth"]["max_size"], 1024)
+        self.assertEqual(params["auth"]["referer"], "https://example.com")
 
     async def test_async_request_filters_none_and_lowercases_booleans_in_extra_data(self):
         session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})

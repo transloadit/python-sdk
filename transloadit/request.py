@@ -114,10 +114,12 @@ class Request:
     def _to_payload(self, data):
         data = copy.deepcopy(data or {})
         expiry = datetime.now(timezone.utc) + timedelta(seconds=self.transloadit.duration)
-        data["auth"] = {
+        auth = data.get("auth") if isinstance(data.get("auth"), dict) else {}
+        auth.update({
             "key": self.transloadit.auth_key,
             "expires": expiry.strftime("%Y/%m/%d %H:%M:%S+00:00"),
-        }
+        })
+        data["auth"] = auth
         json_data = json.dumps(data)
         return {"params": json_data, "signature": self._sign_data(json_data)}
 

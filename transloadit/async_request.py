@@ -59,11 +59,11 @@ class AsyncRequest:
             return self._session
         async with self._get_session_lock():
             if self._session is None:
-                self._session = aiohttp.ClientSession()
+                self._session = aiohttp.ClientSession(trust_env=True)
                 self._owns_session = True
             elif self._session.closed:
                 if self._owns_session:
-                    self._session = aiohttp.ClientSession()
+                    self._session = aiohttp.ClientSession(trust_env=True)
                 else:
                     raise RuntimeError("Injected aiohttp session is closed.")
             return self._session
@@ -75,10 +75,12 @@ class AsyncRequest:
                 self._session = None
 
     def _timeout(self, files=False):
+        # Large uploads can legitimately wait longer than TIMEOUT for the first response byte.
+        sock_read = None if files else TIMEOUT
         return aiohttp.ClientTimeout(
             total=None,
             sock_connect=TIMEOUT,
-            sock_read=None if files else TIMEOUT,
+            sock_read=sock_read,
         )
 
     def _normalize_payload(self, data):
@@ -115,7 +117,7 @@ class AsyncRequest:
             return Response(
                 data=await self._read_response_data(response),
                 status_code=response.status,
-                headers=response.headers,
+                headers=dict(response.headers),
             )
 
     async def post(self, path, data=None, extra_data=None, files=None):
@@ -149,7 +151,7 @@ class AsyncRequest:
             return Response(
                 data=await self._read_response_data(response),
                 status_code=response.status,
-                headers=response.headers,
+                headers=dict(response.headers),
             )
 
     async def put(self, path, data=None):
@@ -167,7 +169,7 @@ class AsyncRequest:
             return Response(
                 data=await self._read_response_data(response),
                 status_code=response.status,
-                headers=response.headers,
+                headers=dict(response.headers),
             )
 
     async def delete(self, path, data=None):
@@ -185,16 +187,18 @@ class AsyncRequest:
             return Response(
                 data=await self._read_response_data(response),
                 status_code=response.status,
-                headers=response.headers,
+                headers=dict(response.headers),
             )
 
     def _to_payload(self, data):
         data = copy.deepcopy(data or {})
         expiry = datetime.now(timezone.utc) + timedelta(seconds=self.transloadit.duration)
-        data["auth"] = {
+        auth = data.get("auth") if isinstance(data.get("auth"), dict) else {}
+        auth.update({
             "key": self.transloadit.auth_key,
             "expires": expiry.strftime("%Y/%m/%d %H:%M:%S+00:00"),
-        }
+        })
+        data["auth"] = auth
         json_data = json.dumps(data)
         return {"params": json_data, "signature": self._sign_data(json_data)}
 
