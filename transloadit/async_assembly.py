@@ -78,16 +78,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
             ).upload()
 
     async def _do_tus_upload_async(self, assembly_url, tus_url, retries):
-        upload_task = asyncio.create_task(
-            asyncio.to_thread(self._do_tus_upload, assembly_url, tus_url, retries)
-        )
-        try:
-            await asyncio.shield(upload_task)
-        except asyncio.CancelledError:
-            try:
-                await asyncio.shield(upload_task)
-            finally:
-                raise
+        await asyncio.to_thread(self._do_tus_upload, assembly_url, tus_url, retries)
 
     async def create(self, wait=False, resumable=True, retries=3):
         """
@@ -111,10 +102,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
 
             response_data = self._response_data(response)
             if response_data is None:
-                if response.status_code >= 400:
+                if response.status_code >= 400 or wait or (resumable and self.files):
                     raise RuntimeError(f"Unexpected non-JSON response ({response.status_code}).")
-                if resumable and self.files:
-                    raise RuntimeError("Resumable assembly response is missing upload URLs.")
                 return response
 
             if self._rate_limit_reached(response_data):
@@ -163,9 +152,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                     )
                     poll_data = self._response_data(poll_response)
                     if poll_data is None:
-                        if poll_response.status_code >= 400:
-                            raise RuntimeError(f"Unexpected non-JSON response ({poll_response.status_code}).")
-                        return poll_response
+                        raise RuntimeError(f"Unexpected non-JSON response ({poll_response.status_code}).")
 
                 return poll_response
 

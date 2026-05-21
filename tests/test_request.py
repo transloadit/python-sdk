@@ -56,6 +56,18 @@ class RequestTest(unittest.TestCase):
         self.assertEqual(params["auth"]["max_size"], 1024)
         self.assertEqual(params["auth"]["referer"], "https://example.com")
 
+    def test_full_url_rejects_external_absolute_urls(self):
+        self.assertEqual(
+            self.request._get_full_url(f"{self.transloadit.service}/foo"),
+            f"{self.transloadit.service}/foo",
+        )
+        self.assertEqual(
+            self.request._get_full_url("https://api2-region.transloadit.com/foo"),
+            "https://api2-region.transloadit.com/foo",
+        )
+        with self.assertRaises(ValueError):
+            self.request._get_full_url("https://example.com/foo")
+
     @requests_mock.Mocker()
     def test_put(self, mock):
         url = f"{self.transloadit.service}/foo"

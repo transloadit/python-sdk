@@ -8,6 +8,7 @@ import hmac
 import json
 from types import MappingProxyType
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 import aiohttp
 from requests.structures import CaseInsensitiveDict
@@ -16,6 +17,10 @@ from . import __version__
 from .response import Response
 
 TIMEOUT = 60
+
+
+def _is_transloadit_host(hostname):
+    return hostname == "transloadit.com" or hostname.endswith(".transloadit.com")
 
 
 def _get_upload_filename(file_stream, fallback):
@@ -60,6 +65,12 @@ class _NonClosingUploadStream(io.IOBase):
         return self._file_stream.seek(*args)
 
     def seekable(self):
+        seekable = getattr(self._file_stream, "seekable", None)
+        if callable(seekable):
+            try:
+                return seekable()
+            except (OSError, ValueError):
+                return False
         return hasattr(self._file_stream, "seek")
 
     def tell(self):
@@ -121,14 +132,18 @@ class AsyncRequest:
         )
 
     def _normalize_payload(self, data):
-        normalized = {}
+        normalized = []
         for key, value in data.items():
             if value is None:
                 continue
-            if isinstance(value, bool):
-                normalized[key] = "true" if value else "false"
-            else:
-                normalized[key] = str(value)
+            values = value if isinstance(value, (list, tuple)) else [value]
+            for item in values:
+                if item is None:
+                    continue
+                if isinstance(item, bool):
+                    normalized.append((key, "true" if item else "false"))
+                else:
+                    normalized.append((key, str(item)))
         return normalized
 
     async def _read_response_data(self, response):
@@ -144,9 +159,10 @@ class AsyncRequest:
         """
         Makes an asynchronous HTTP GET request.
         """
+        url = self._get_full_url(path)
         session = await self._ensure_session()
         async with session.get(
-            self._get_full_url(path),
+            url,
             params=self._to_payload(params),
             headers=self._headers(),
             timeout=self._timeout(),
@@ -161,6 +177,7 @@ class AsyncRequest:
         """
         Makes an asynchronous HTTP POST request.
         """
+        url = self._get_full_url(path)
         session = await self._ensure_session()
         data = self._to_payload(data)
         if extra_data:
@@ -168,7 +185,7 @@ class AsyncRequest:
 
         if files:
             form = aiohttp.FormData()
-            for key, value in self._normalize_payload(data).items():
+            for key, value in self._normalize_payload(data):
                 form.add_field(key, value)
 
             for key, file_stream in files.items():
@@ -185,7 +202,7 @@ class AsyncRequest:
             payload = self._normalize_payload(data)
 
         async with session.post(
-            self._get_full_url(path),
+            url,
             data=payload,
             headers=self._headers(),
             timeout=self._timeout(files=bool(files)),
@@ -200,10 +217,11 @@ class AsyncRequest:
         """
         Makes an asynchronous HTTP PUT request.
         """
+        url = self._get_full_url(path)
         session = await self._ensure_session()
         data = self._normalize_payload(self._to_payload(data))
         async with session.put(
-            self._get_full_url(path),
+            url,
             data=data,
             headers=self._headers(),
             timeout=self._timeout(),
@@ -218,10 +236,11 @@ class AsyncRequest:
         """
         Makes an asynchronous HTTP DELETE request.
         """
+        url = self._get_full_url(path)
         session = await self._ensure_session()
         data = self._normalize_payload(self._to_payload(data))
         async with session.delete(
-            self._get_full_url(path),
+            url,
             data=data,
             headers=self._headers(),
             timeout=self._timeout(),
@@ -252,5 +271,15 @@ class AsyncRequest:
 
     def _get_full_url(self, url):
         if url.startswith(("http://", "https://")):
+            service = urlparse(self.transloadit.service)
+            target = urlparse(url)
+            same_origin = (target.scheme, target.netloc) == (service.scheme, service.netloc)
+            transloadit_origin = (
+                target.scheme == service.scheme
+                and _is_transloadit_host(service.hostname or "")
+                and _is_transloadit_host(target.hostname or "")
+            )
+            if not (same_origin or transloadit_origin):
+                raise ValueError("Absolute API URLs must use the configured Transloadit service origin.")
             return url
         return self.transloadit.service + url

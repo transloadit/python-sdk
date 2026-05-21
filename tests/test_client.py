@@ -72,6 +72,19 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
         self.assertEqual(response.data["assembly_id"], "abcdef12345")
 
+    def test_quotes_path_ids(self):
+        with mock.patch.object(self.transloadit.request, 'get') as get_mock:
+            self.transloadit.get_assembly(assembly_id='assembly/with?chars')
+            self.transloadit.get_template('template/with?chars')
+
+        self.assertEqual(
+            get_mock.call_args_list,
+            [
+                mock.call('/assemblies/assembly%2Fwith%3Fchars'),
+                mock.call('/templates/template%2Fwith%3Fchars'),
+            ],
+        )
+
     @requests_mock.Mocker()
     def test_list_assemblies(self, mock):
         url = f"{self.transloadit.service}/assemblies"

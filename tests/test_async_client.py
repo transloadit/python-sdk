@@ -365,6 +365,27 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await client.cancel_assembly()
 
+        with self.assertRaises(ValueError):
+            await client.get_assembly(assembly_url="https://example.com/assemblies/abc123")
+
+        with self.assertRaises(ValueError):
+            await client.cancel_assembly(assembly_url="https://example.com/assemblies/abc123")
+
+        transloadit_session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
+        transloadit_client = AsyncTransloadit(
+            "key",
+            "secret",
+            service="https://api2.transloadit.com",
+            session=transloadit_session,
+        )
+        await transloadit_client.get_assembly(
+            assembly_url="https://api2-region.transloadit.com/assemblies/abc123"
+        )
+        self.assertEqual(
+            transloadit_session.calls[0][0],
+            "https://api2-region.transloadit.com/assemblies/abc123",
+        )
+
         await client.close()
 
         self.assertFalse(session.closed)
@@ -564,7 +585,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         )
         sleep_mock.assert_awaited_once_with(0)
 
-    async def test_async_assembly_wait_returns_plain_text_poll_response(self):
+    async def test_async_assembly_wait_raises_on_plain_text_success_poll_response(self):
         initial_response = Response(
             data={
                 "ok": "ASSEMBLY_PROCESSING",
@@ -586,9 +607,9 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=initial_response)) as post_mock:
                 with mock.patch.object(client, "get_assembly", new=mock.AsyncMock(return_value=plain_response)) as get_mock:
                     with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
-                        response = await assembly.create(wait=True, resumable=False)
+                        with self.assertRaises(RuntimeError):
+                            await assembly.create(wait=True, resumable=False)
 
-        self.assertIs(response, plain_response)
         post_mock.assert_awaited_once()
         get_mock.assert_awaited_once_with(
             assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
@@ -1313,7 +1334,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertFalse(assembly._rate_limit_reached({"error": ["RATE_LIMIT_REACHED"]}))
         self.assertFalse(assembly._rate_limit_reached({"error": {"code": "RATE_LIMIT_REACHED"}}))
 
-    async def test_async_tus_upload_cancellation_waits_for_thread_to_finish(self):
+    async def test_async_tus_upload_cancellation_returns_before_thread_finishes(self):
         client = AsyncTransloadit("key", "secret", service=self.server.base_url)
         assembly = client.new_assembly()
         started = threading.Event()
@@ -1338,13 +1359,14 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         upload_task.cancel()
         await asyncio.sleep(0.05)
 
-        self.assertFalse(upload_task.done())
+        self.assertTrue(upload_task.done())
         self.assertFalse(finished.is_set())
 
-        release.set()
         with self.assertRaises(asyncio.CancelledError):
             await upload_task
 
+        release.set()
+        await asyncio.to_thread(finished.wait, 5)
         self.assertTrue(finished.is_set())
 
     async def test_async_request_uses_connect_and_read_timeouts_for_uploads(self):
@@ -1406,7 +1428,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         response = await client.request.post(
             "/assemblies",
             data={"foo": "bar"},
-            extra_data={"enabled": True, "skip": None},
+            extra_data={"enabled": True, "skip": None, "tags": ["a", "b"]},
             files={"file": upload},
         )
 
@@ -1415,6 +1437,21 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertIn("enabled", fields)
         self.assertNotIn("skip", fields)
         self.assertEqual(fields["enabled"][2], "true")
+        tag_values = [field[2] for field in session.calls[0][1]["data"]._fields if field[0]["name"] == "tags"]
+        self.assertEqual(tag_values, ["a", "b"])
+
+    def test_non_closing_upload_stream_reflects_seekability(self):
+        class _NonSeekableUpload(io.BytesIO):
+            def seekable(self):
+                return False
+
+        class _BrokenSeekableUpload(io.BytesIO):
+            def seekable(self):
+                raise OSError("seekable failed")
+
+        self.assertTrue(_NonClosingUploadStream(io.BytesIO(b"payload")).seekable())
+        self.assertFalse(_NonClosingUploadStream(_NonSeekableUpload(b"payload")).seekable())
+        self.assertFalse(_NonClosingUploadStream(_BrokenSeekableUpload(b"payload")).seekable())
 
     async def test_async_request_uses_filename_fallback_for_trailing_slash_stream_name(self):
         session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
