@@ -457,6 +457,110 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         self.assertEqual(session.calls, [])
 
+    async def test_async_generated_endpoint_methods_call_request_helpers(self):
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+        response = Response(data={"ok": "OK"}, status_code=200, headers={})
+        assembly_data = {"steps": {":original": {"robot": "/upload/handle"}}}
+        extra_data = {"field": "value"}
+        files = {"file": io.BytesIO(b"payload")}
+        replay_data = {"wait": True}
+        credential_data = {"name": "demo", "type": "s3", "content": {}}
+
+        get_mock = mock.AsyncMock(return_value=response)
+        post_mock = mock.AsyncMock(return_value=response)
+        put_mock = mock.AsyncMock(return_value=response)
+        delete_mock = mock.AsyncMock(return_value=response)
+
+        with mock.patch.object(client.request, "get", new=get_mock):
+            with mock.patch.object(client.request, "post", new=post_mock):
+                with mock.patch.object(client.request, "put", new=put_mock):
+                    with mock.patch.object(client.request, "delete", new=delete_mock):
+                        await client.create_assembly(assembly_data, extra_data, files)
+                        await client.create_assembly_with_id(
+                            "assembly/with?chars", assembly_data, extra_data, files
+                        )
+                        await client.replay_assembly("assembly/with?chars", replay_data)
+                        await client.replay_assembly_notification(
+                            "assembly/with?chars", replay_data
+                        )
+                        await client.create_template({"name": "template"})
+                        await client.validate_template_credential_oauth_on_create(
+                            {"type": "dropbox"}
+                        )
+                        await client.create_template_credentials(credential_data)
+                        await client.list_assembly_notifications("assembly/with?chars")
+                        await client.get_builtin_template("builtin/with?chars")
+                        await client.get_template_full("template/with?chars")
+                        await client.get_builtin_template_full("builtin/full?chars")
+                        await client.list_priority_job_slots()
+                        await client.list_template_credentials()
+                        await client.list_template_credential_types()
+                        await client.get_template_credentials("cred/with?chars")
+                        await client.update_template_credentials("cred/with?chars", credential_data)
+                        await client.delete_template_credentials("cred/with?chars")
+
+        self.assertEqual(
+            post_mock.await_args_list,
+            [
+                mock.call(
+                    "/assemblies",
+                    data=assembly_data,
+                    extra_data=extra_data,
+                    files=files,
+                ),
+                mock.call(
+                    "/assemblies/assembly%2Fwith%3Fchars",
+                    data=assembly_data,
+                    extra_data=extra_data,
+                    files=files,
+                ),
+                mock.call("/assemblies/assembly%2Fwith%3Fchars/replay", data=replay_data),
+                mock.call(
+                    "/assembly_notifications/assembly%2Fwith%3Fchars/replay",
+                    data=replay_data,
+                ),
+                mock.call("/templates", data={"name": "template"}),
+                mock.call("/template_credentials/validateOauthOnCreate", data={"type": "dropbox"}),
+                mock.call("/template_credentials", data=credential_data),
+            ],
+        )
+        self.assertEqual(
+            get_mock.await_args_list,
+            [
+                mock.call("/assembly_notifications/assembly%2Fwith%3Fchars"),
+                mock.call("/templates/builtin/builtin%2Fwith%3Fchars"),
+                mock.call("/templates/template%2Fwith%3Fchars/full"),
+                mock.call("/templates/builtin/builtin%2Ffull%3Fchars/full"),
+                mock.call("/queues/job_slots"),
+                mock.call("/template_credentials"),
+                mock.call("/template_credentials/types"),
+                mock.call("/template_credentials/cred%2Fwith%3Fchars"),
+            ],
+        )
+        put_mock.assert_awaited_once_with(
+            "/template_credentials/cred%2Fwith%3Fchars", data=credential_data
+        )
+        delete_mock.assert_awaited_once_with("/template_credentials/cred%2Fwith%3Fchars")
+
+    async def test_async_generated_endpoint_methods_reject_empty_path_ids(self):
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
+        methods = [
+            client.create_assembly_with_id,
+            client.replay_assembly,
+            client.replay_assembly_notification,
+            client.list_assembly_notifications,
+            client.get_builtin_template,
+            client.get_template_full,
+            client.get_builtin_template_full,
+            client.get_template_credentials,
+            client.delete_template_credentials,
+            client.update_template_credentials,
+        ]
+
+        for method in methods:
+            with self.assertRaises(ValueError):
+                await method("")
+
     async def test_async_client_close_reopens_owned_session(self):
         client = AsyncTransloadit("key", "secret", service=self.server.base_url)
 

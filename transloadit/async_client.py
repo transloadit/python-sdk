@@ -48,6 +48,20 @@ class AsyncTransloadit:
         """
         return async_assembly.AsyncAssembly(self, options=params)
 
+    async def create_assembly(self, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
+        """
+        Create a new Assembly.
+        """
+        return await self.request.post("/assemblies", data=data, extra_data=extra_data, files=files)
+
+    async def create_assembly_with_id(self, assembly_id: str, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
+        """
+        Create Assembly With Id.
+        """
+        assembly_id = require_path_id(assembly_id, "assembly_id")
+
+        return await self.request.post(f"/assemblies/{_quote_path_segment(assembly_id)}", data=data, extra_data=extra_data, files=files)
+
     async def get_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
         Get the assembly specified by the 'assembly_id' or the 'assembly_url'.
@@ -74,6 +88,30 @@ class AsyncTransloadit:
         url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
         return await self.request.delete(url)
 
+    async def replay_assembly(self, assembly_id: str, data: Optional[dict] = None):
+        """
+        Replay an Assembly.
+        """
+        assembly_id = require_path_id(assembly_id, "assembly_id")
+
+        return await self.request.post(f"/assemblies/{_quote_path_segment(assembly_id)}/replay", data=data)
+
+    async def replay_assembly_notification(self, assembly_id: str, data: Optional[dict] = None):
+        """
+        Replay Assembly Notification.
+        """
+        assembly_id = require_path_id(assembly_id, "assembly_id")
+
+        return await self.request.post(f"/assembly_notifications/{_quote_path_segment(assembly_id)}/replay", data=data)
+
+    async def list_assembly_notifications(self, assembly_id: str):
+        """
+        List Assembly Notifications.
+        """
+        assembly_id = require_path_id(assembly_id, "assembly_id")
+
+        return await self.request.get(f"/assembly_notifications/{_quote_path_segment(assembly_id)}")
+
     async def get_template(self, template_id: str):
         """
         Get the template specified by the 'template_id'.
@@ -81,11 +119,41 @@ class AsyncTransloadit:
         template_id = require_path_id(template_id, "template_id")
         return await self.request.get(f"/templates/{_quote_path_segment(template_id)}")
 
+    async def get_builtin_template(self, builtin_template_slug: str):
+        """
+        Get Builtin Template.
+        """
+        builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
+
+        return await self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}")
+
+    async def get_template_full(self, template_id_or_name: str):
+        """
+        Get Template Full.
+        """
+        template_id_or_name = require_path_id(template_id_or_name, "template_id_or_name")
+
+        return await self.request.get(f"/templates/{_quote_path_segment(template_id_or_name)}/full")
+
+    async def get_builtin_template_full(self, builtin_template_slug: str):
+        """
+        Get Builtin Template Full.
+        """
+        builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
+
+        return await self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}/full")
+
     async def list_templates(self, params: Optional[dict] = None):
         """
         Get the list of templates.
         """
         return await self.request.get("/templates", params=params)
+
+    async def create_template(self, data: Optional[dict] = None):
+        """
+        Create a new Template.
+        """
+        return await self.request.post("/templates", data=data)
 
     def new_template(self, name: str, params: Optional[dict] = None) -> async_template.AsyncTemplate:
         """
@@ -106,6 +174,60 @@ class AsyncTransloadit:
         """
         template_id = require_path_id(template_id, "template_id")
         return await self.request.delete(f"/templates/{_quote_path_segment(template_id)}")
+
+    async def list_priority_job_slots(self):
+        """
+        Retrieve currently used priority job slots.
+        """
+        return await self.request.get("/queues/job_slots")
+
+    async def list_template_credentials(self):
+        """
+        Retrieve list of Template Credentials.
+        """
+        return await self.request.get("/template_credentials")
+
+    async def list_template_credential_types(self):
+        """
+        List Template Credential Types.
+        """
+        return await self.request.get("/template_credentials/types")
+
+    async def validate_template_credential_oauth_on_create(self, data: Optional[dict] = None):
+        """
+        Validate Template Credential OAuth On Create.
+        """
+        return await self.request.post("/template_credentials/validateOauthOnCreate", data=data)
+
+    async def create_template_credentials(self, data: Optional[dict] = None):
+        """
+        Create a new Template Credential.
+        """
+        return await self.request.post("/template_credentials", data=data)
+
+    async def get_template_credentials(self, identifier: str):
+        """
+        Retrieve a Template Credential.
+        """
+        identifier = require_path_id(identifier, "identifier")
+
+        return await self.request.get(f"/template_credentials/{_quote_path_segment(identifier)}")
+
+    async def delete_template_credentials(self, identifier: str):
+        """
+        Delete a Template Credential.
+        """
+        identifier = require_path_id(identifier, "identifier")
+
+        return await self.request.delete(f"/template_credentials/{_quote_path_segment(identifier)}")
+
+    async def update_template_credentials(self, identifier: str, data: Optional[dict] = None):
+        """
+        Edit a Template Credential.
+        """
+        identifier = require_path_id(identifier, "identifier")
+
+        return await self.request.put(f"/template_credentials/{_quote_path_segment(identifier)}", data=data)
 
     async def get_bill(self, month: int, year: int):
         """

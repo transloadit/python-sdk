@@ -56,6 +56,20 @@ class Transloadit:
         """
         return assembly.Assembly(self, options=params)
 
+    def create_assembly(self, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
+        """
+        Create a new Assembly.
+        """
+        return self.request.post("/assemblies", data=data, extra_data=extra_data, files=files)
+
+    def create_assembly_with_id(self, assembly_id: str, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
+        """
+        Create Assembly With Id.
+        """
+        assembly_id = require_path_id(assembly_id, "assembly_id")
+
+        return self.request.post(f"/assemblies/{_quote_path_segment(assembly_id)}", data=data, extra_data=extra_data, files=files)
+
     def get_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
         Get the assembly specified by the 'assembly_id' or the 'assembly_url'
@@ -103,6 +117,30 @@ class Transloadit:
         url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
         return self.request.delete(url)
 
+    def replay_assembly(self, assembly_id: str, data: Optional[dict] = None):
+        """
+        Replay an Assembly.
+        """
+        assembly_id = require_path_id(assembly_id, "assembly_id")
+
+        return self.request.post(f"/assemblies/{_quote_path_segment(assembly_id)}/replay", data=data)
+
+    def replay_assembly_notification(self, assembly_id: str, data: Optional[dict] = None):
+        """
+        Replay Assembly Notification.
+        """
+        assembly_id = require_path_id(assembly_id, "assembly_id")
+
+        return self.request.post(f"/assembly_notifications/{_quote_path_segment(assembly_id)}/replay", data=data)
+
+    def list_assembly_notifications(self, assembly_id: str):
+        """
+        List Assembly Notifications.
+        """
+        assembly_id = require_path_id(assembly_id, "assembly_id")
+
+        return self.request.get(f"/assembly_notifications/{_quote_path_segment(assembly_id)}")
+
     def get_template(self, template_id: str):
         """
         Get the template specified by the 'template_id'.
@@ -114,6 +152,30 @@ class Transloadit:
         """
         template_id = require_path_id(template_id, "template_id")
         return self.request.get(f"/templates/{_quote_path_segment(template_id)}")
+
+    def get_builtin_template(self, builtin_template_slug: str):
+        """
+        Get Builtin Template.
+        """
+        builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
+
+        return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}")
+
+    def get_template_full(self, template_id_or_name: str):
+        """
+        Get Template Full.
+        """
+        template_id_or_name = require_path_id(template_id_or_name, "template_id_or_name")
+
+        return self.request.get(f"/templates/{_quote_path_segment(template_id_or_name)}/full")
+
+    def get_builtin_template_full(self, builtin_template_slug: str):
+        """
+        Get Builtin Template Full.
+        """
+        builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
+
+        return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}/full")
 
     def list_templates(self, params: Optional[dict] = None):
         """
@@ -127,6 +189,12 @@ class Transloadit:
         Return an instance of <transloadit.response.Response>
         """
         return self.request.get("/templates", params=params)
+
+    def create_template(self, data: Optional[dict] = None):
+        """
+        Create a new Template.
+        """
+        return self.request.post("/templates", data=data)
 
     def new_template(self, name: str, params: Optional[dict] = None) -> template.Template:
         """
@@ -162,6 +230,60 @@ class Transloadit:
         """
         template_id = require_path_id(template_id, "template_id")
         return self.request.delete(f"/templates/{_quote_path_segment(template_id)}")
+
+    def list_priority_job_slots(self):
+        """
+        Retrieve currently used priority job slots.
+        """
+        return self.request.get("/queues/job_slots")
+
+    def list_template_credentials(self):
+        """
+        Retrieve list of Template Credentials.
+        """
+        return self.request.get("/template_credentials")
+
+    def list_template_credential_types(self):
+        """
+        List Template Credential Types.
+        """
+        return self.request.get("/template_credentials/types")
+
+    def validate_template_credential_oauth_on_create(self, data: Optional[dict] = None):
+        """
+        Validate Template Credential OAuth On Create.
+        """
+        return self.request.post("/template_credentials/validateOauthOnCreate", data=data)
+
+    def create_template_credentials(self, data: Optional[dict] = None):
+        """
+        Create a new Template Credential.
+        """
+        return self.request.post("/template_credentials", data=data)
+
+    def get_template_credentials(self, identifier: str):
+        """
+        Retrieve a Template Credential.
+        """
+        identifier = require_path_id(identifier, "identifier")
+
+        return self.request.get(f"/template_credentials/{_quote_path_segment(identifier)}")
+
+    def delete_template_credentials(self, identifier: str):
+        """
+        Delete a Template Credential.
+        """
+        identifier = require_path_id(identifier, "identifier")
+
+        return self.request.delete(f"/template_credentials/{_quote_path_segment(identifier)}")
+
+    def update_template_credentials(self, identifier: str, data: Optional[dict] = None):
+        """
+        Edit a Template Credential.
+        """
+        identifier = require_path_id(identifier, "identifier")
+
+        return self.request.put(f"/template_credentials/{_quote_path_segment(identifier)}", data=data)
 
     def get_bill(self, month: int, year: int):
         """

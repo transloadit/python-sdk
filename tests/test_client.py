@@ -107,6 +107,104 @@ class ClientTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.transloadit.delete_template(template_id)
 
+    def test_generated_endpoint_methods_call_request_helpers(self):
+        assembly_data = {"steps": {":original": {"robot": "/upload/handle"}}}
+        extra_data = {"field": "value"}
+        files = {"file": object()}
+        replay_data = {"wait": True}
+        credential_data = {"name": "demo", "type": "s3", "content": {}}
+
+        with mock.patch.object(self.transloadit.request, "get") as get_mock:
+            with mock.patch.object(self.transloadit.request, "post") as post_mock:
+                with mock.patch.object(self.transloadit.request, "put") as put_mock:
+                    with mock.patch.object(self.transloadit.request, "delete") as delete_mock:
+                        self.transloadit.create_assembly(assembly_data, extra_data, files)
+                        self.transloadit.create_assembly_with_id(
+                            "assembly/with?chars", assembly_data, extra_data, files
+                        )
+                        self.transloadit.replay_assembly("assembly/with?chars", replay_data)
+                        self.transloadit.replay_assembly_notification(
+                            "assembly/with?chars", replay_data
+                        )
+                        self.transloadit.create_template({"name": "template"})
+                        self.transloadit.validate_template_credential_oauth_on_create(
+                            {"type": "dropbox"}
+                        )
+                        self.transloadit.create_template_credentials(credential_data)
+                        self.transloadit.list_assembly_notifications("assembly/with?chars")
+                        self.transloadit.get_builtin_template("builtin/with?chars")
+                        self.transloadit.get_template_full("template/with?chars")
+                        self.transloadit.get_builtin_template_full("builtin/full?chars")
+                        self.transloadit.list_priority_job_slots()
+                        self.transloadit.list_template_credentials()
+                        self.transloadit.list_template_credential_types()
+                        self.transloadit.get_template_credentials("cred/with?chars")
+                        self.transloadit.update_template_credentials(
+                            "cred/with?chars", credential_data
+                        )
+                        self.transloadit.delete_template_credentials("cred/with?chars")
+
+        self.assertEqual(
+            post_mock.call_args_list,
+            [
+                mock.call(
+                    "/assemblies",
+                    data=assembly_data,
+                    extra_data=extra_data,
+                    files=files,
+                ),
+                mock.call(
+                    "/assemblies/assembly%2Fwith%3Fchars",
+                    data=assembly_data,
+                    extra_data=extra_data,
+                    files=files,
+                ),
+                mock.call("/assemblies/assembly%2Fwith%3Fchars/replay", data=replay_data),
+                mock.call(
+                    "/assembly_notifications/assembly%2Fwith%3Fchars/replay",
+                    data=replay_data,
+                ),
+                mock.call("/templates", data={"name": "template"}),
+                mock.call("/template_credentials/validateOauthOnCreate", data={"type": "dropbox"}),
+                mock.call("/template_credentials", data=credential_data),
+            ],
+        )
+        self.assertEqual(
+            get_mock.call_args_list,
+            [
+                mock.call("/assembly_notifications/assembly%2Fwith%3Fchars"),
+                mock.call("/templates/builtin/builtin%2Fwith%3Fchars"),
+                mock.call("/templates/template%2Fwith%3Fchars/full"),
+                mock.call("/templates/builtin/builtin%2Ffull%3Fchars/full"),
+                mock.call("/queues/job_slots"),
+                mock.call("/template_credentials"),
+                mock.call("/template_credentials/types"),
+                mock.call("/template_credentials/cred%2Fwith%3Fchars"),
+            ],
+        )
+        put_mock.assert_called_once_with(
+            "/template_credentials/cred%2Fwith%3Fchars", data=credential_data
+        )
+        delete_mock.assert_called_once_with("/template_credentials/cred%2Fwith%3Fchars")
+
+    def test_generated_endpoint_methods_reject_empty_path_ids(self):
+        methods = [
+            self.transloadit.create_assembly_with_id,
+            self.transloadit.replay_assembly,
+            self.transloadit.replay_assembly_notification,
+            self.transloadit.list_assembly_notifications,
+            self.transloadit.get_builtin_template,
+            self.transloadit.get_template_full,
+            self.transloadit.get_builtin_template_full,
+            self.transloadit.get_template_credentials,
+            self.transloadit.delete_template_credentials,
+            self.transloadit.update_template_credentials,
+        ]
+
+        for method in methods:
+            with self.assertRaises(ValueError):
+                method("")
+
     @requests_mock.Mocker()
     def test_list_assemblies(self, mock):
         url = f"{self.transloadit.service}/assemblies"
