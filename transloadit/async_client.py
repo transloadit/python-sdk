@@ -48,6 +48,7 @@ class AsyncTransloadit:
         """
         return async_assembly.AsyncAssembly(self, options=params)
 
+    # <api2-generated-endpoints>
     async def create_assembly(self, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
         """
         Create a new Assembly.
@@ -155,12 +156,6 @@ class AsyncTransloadit:
         """
         return await self.request.post("/templates", data=data)
 
-    def new_template(self, name: str, params: Optional[dict] = None) -> async_template.AsyncTemplate:
-        """
-        Return an instance of <transloadit.async_template.AsyncTemplate>.
-        """
-        return async_template.AsyncTemplate(self, name, options=params)
-
     async def update_template(self, template_id: str, data: dict):
         """
         Update the template specified by the 'template_id'.
@@ -234,6 +229,14 @@ class AsyncTransloadit:
         Get the bill for the specified month and year.
         """
         return await self.request.get(f"/bill/{year}-{month:02d}")
+
+    # </api2-generated-endpoints>
+
+    def new_template(self, name: str, params: Optional[dict] = None) -> async_template.AsyncTemplate:
+        """
+        Return an instance of <transloadit.async_template.AsyncTemplate>.
+        """
+        return async_template.AsyncTemplate(self, name, options=params)
 
     def get_signed_smart_cdn_url(
         self,

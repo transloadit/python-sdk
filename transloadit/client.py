@@ -56,6 +56,7 @@ class Transloadit:
         """
         return assembly.Assembly(self, options=params)
 
+    # <api2-generated-endpoints>
     def create_assembly(self, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
         """
         Create a new Assembly.
@@ -196,16 +197,6 @@ class Transloadit:
         """
         return self.request.post("/templates", data=data)
 
-    def new_template(self, name: str, params: Optional[dict] = None) -> template.Template:
-        """
-        Return an instance of <transloadit.template.Template> which would be used to create
-        a new template.
-
-        :Args:
-            - name (str): Name of the template.
-        """
-        return template.Template(self, name, options=params)
-
     def update_template(self, template_id: str, data: dict):
         """
         Update the template specified by the 'template_id'.
@@ -296,6 +287,18 @@ class Transloadit:
         Return an instance of <transloadit.response.Response>
         """
         return self.request.get(f"/bill/{year}-{month:02d}")
+
+    # </api2-generated-endpoints>
+
+    def new_template(self, name: str, params: Optional[dict] = None) -> template.Template:
+        """
+        Return an instance of <transloadit.template.Template> which would be used to create
+        a new template.
+
+        :Args:
+            - name (str): Name of the template.
+        """
+        return template.Template(self, name, options=params)
 
     def get_signed_smart_cdn_url(
         self,
