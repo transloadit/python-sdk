@@ -71,6 +71,12 @@ class Transloadit:
 
         return self.request.post(f"/assemblies/{_quote_path_segment(assembly_id)}", data=data, extra_data=extra_data, files=files)
 
+    def list_assemblies(self, params: Optional[dict] = None):
+        """
+        Retrieve list of Assemblies.
+        """
+        return self.request.get("/assemblies", params=params)
+
     def get_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
         Retrieve an Assembly Status.
@@ -80,12 +86,6 @@ class Transloadit:
 
         url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
         return self.request.get(url)
-
-    def list_assemblies(self, params: dict = None):
-        """
-        Retrieve list of Assemblies.
-        """
-        return self.request.get("/assemblies", params=params)
 
     def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
@@ -121,11 +121,30 @@ class Transloadit:
 
         return self.request.get(f"/assembly_notifications/{_quote_path_segment(assembly_id)}")
 
+    def get_bill(self, month: int, year: int):
+        """
+        Retrieve a month’s bill.
+        """
+        return self.request.get(f"/bill/{year}-{month:02d}")
+
+    def list_templates(self, params: Optional[dict] = None):
+        """
+        Retrieve list of Templates.
+        """
+        return self.request.get("/templates", params=params)
+
+    def create_template(self, data: Optional[dict] = None):
+        """
+        Create a new Template.
+        """
+        return self.request.post("/templates", data=data)
+
     def get_template(self, template_id: str):
         """
         Retrieve a Template.
         """
         template_id = require_path_id(template_id, "template_id")
+
         return self.request.get(f"/templates/{_quote_path_segment(template_id)}")
 
     def get_builtin_template(self, builtin_template_slug: str):
@@ -152,23 +171,12 @@ class Transloadit:
 
         return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}/full")
 
-    def list_templates(self, params: Optional[dict] = None):
-        """
-        Retrieve list of Templates.
-        """
-        return self.request.get("/templates", params=params)
-
-    def create_template(self, data: Optional[dict] = None):
-        """
-        Create a new Template.
-        """
-        return self.request.post("/templates", data=data)
-
-    def update_template(self, template_id: str, data: dict):
+    def update_template(self, template_id: str, data: Optional[dict] = None):
         """
         Edit a Template.
         """
         template_id = require_path_id(template_id, "template_id")
+
         return self.request.put(f"/templates/{_quote_path_segment(template_id)}", data=data)
 
     def delete_template(self, template_id: str):
@@ -176,6 +184,7 @@ class Transloadit:
         Delete a Template.
         """
         template_id = require_path_id(template_id, "template_id")
+
         return self.request.delete(f"/templates/{_quote_path_segment(template_id)}")
 
     def list_priority_job_slots(self):
@@ -231,12 +240,6 @@ class Transloadit:
         identifier = require_path_id(identifier, "identifier")
 
         return self.request.put(f"/template_credentials/{_quote_path_segment(identifier)}", data=data)
-
-    def get_bill(self, month: int, year: int):
-        """
-        Retrieve a month’s bill.
-        """
-        return self.request.get(f"/bill/{year}-{month:02d}")
 
     # </api2-generated-endpoints>
 
