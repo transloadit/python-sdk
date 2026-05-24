@@ -73,14 +73,7 @@ class Transloadit:
 
     def get_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
-        Get the assembly specified by the 'assembly_id' or the 'assembly_url'
-        Either the assembly_id or the assembly_url must be specified
-
-        :Args:
-            - assembly_id (Optional[str])
-            - assembly_url (Optional[str])
-
-        Return an instance of <transloadit.response.Response>
+        Retrieve an Assembly Status.
         """
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
@@ -90,27 +83,13 @@ class Transloadit:
 
     def list_assemblies(self, params: dict = None):
         """
-        Get the list of assemblies.
-
-        :Args:
-            - options (Optional[dict]):
-                params to send along with the request. Please see
-                https://transloadit.com/docs/api-docs/#25-retrieve-assembly-list for available options.
-
-        Return an instance of <transloadit.response.Response>
+        Retrieve list of Assemblies.
         """
         return self.request.get("/assemblies", params=params)
 
     def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
-        Cancel the assembly specified by the 'assembly_id' or the 'assembly_url'
-        Either the assembly_id or the assembly_url must be specified
-
-        :Args:
-            - assembly_id (Optional[str])
-            - assembly_url (Optional[str])
-
-        Return an instance of <transloadit.response.Response>
+        Cancel a running Assembly.
         """
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
@@ -144,12 +123,7 @@ class Transloadit:
 
     def get_template(self, template_id: str):
         """
-        Get the template specified by the 'template_id'.
-
-        :Args:
-            - template_id (str)
-
-        Return an instance of <transloadit.response.Response>
+        Retrieve a Template.
         """
         template_id = require_path_id(template_id, "template_id")
         return self.request.get(f"/templates/{_quote_path_segment(template_id)}")
@@ -180,14 +154,7 @@ class Transloadit:
 
     def list_templates(self, params: Optional[dict] = None):
         """
-        Get the list of templates.
-
-        :Args:
-            - options (Optional[dict]):
-                params to send along with the request. Please see
-                https://transloadit.com/docs/api-docs/#45-retrieve-template-list for available options.
-
-        Return an instance of <transloadit.response.Response>
+        Retrieve list of Templates.
         """
         return self.request.get("/templates", params=params)
 
@@ -199,25 +166,14 @@ class Transloadit:
 
     def update_template(self, template_id: str, data: dict):
         """
-        Update the template specified by the 'template_id'.
-
-        :Args:
-            - template_id (str)
-            - data (dict): key, value pair of fields and their new values.
-
-        Return an instance of <transloadit.response.Response>
+        Edit a Template.
         """
         template_id = require_path_id(template_id, "template_id")
         return self.request.put(f"/templates/{_quote_path_segment(template_id)}", data=data)
 
     def delete_template(self, template_id: str):
         """
-        Delete the template specified by the 'template_id'.
-
-        :Args:
-            - template_id (str)
-
-        Return an instance of <transloadit.response.Response>
+        Delete a Template.
         """
         template_id = require_path_id(template_id, "template_id")
         return self.request.delete(f"/templates/{_quote_path_segment(template_id)}")
@@ -278,13 +234,7 @@ class Transloadit:
 
     def get_bill(self, month: int, year: int):
         """
-        Get the bill for the specified month and year.
-
-        :Args:
-            - month (int): e.g 1 for January
-            - year (int)
-
-        Return an instance of <transloadit.response.Response>
+        Retrieve a month’s bill.
         """
         return self.request.get(f"/bill/{year}-{month:02d}")
 

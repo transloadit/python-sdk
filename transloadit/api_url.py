@@ -36,11 +36,12 @@ def should_sign_api_url(url, service):
     # Only same-service URLs and Transloadit API regional hosts may receive auth params.
     if (
         parsed_url.scheme == parsed_service.scheme
-        and parsed_url.netloc == parsed_service.netloc
+        and (parsed_url.hostname or "").lower() == (parsed_service.hostname or "").lower()
+        and parsed_url.port == parsed_service.port
     ):
         return True
 
-    hostname = parsed_url.hostname or ""
+    hostname = (parsed_url.hostname or "").lower()
     return parsed_url.scheme == "https" and (
         hostname == "api2.transloadit.com"
         or (hostname.startswith("api2-") and hostname.endswith(".transloadit.com"))

@@ -65,7 +65,7 @@ class AsyncTransloadit:
 
     async def get_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
-        Get the assembly specified by the 'assembly_id' or the 'assembly_url'.
+        Retrieve an Assembly Status.
         """
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
@@ -75,13 +75,13 @@ class AsyncTransloadit:
 
     async def list_assemblies(self, params: dict = None):
         """
-        Get the list of assemblies.
+        Retrieve list of Assemblies.
         """
         return await self.request.get("/assemblies", params=params)
 
     async def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
-        Cancel the assembly specified by the 'assembly_id' or the 'assembly_url'.
+        Cancel a running Assembly.
         """
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
@@ -115,7 +115,7 @@ class AsyncTransloadit:
 
     async def get_template(self, template_id: str):
         """
-        Get the template specified by the 'template_id'.
+        Retrieve a Template.
         """
         template_id = require_path_id(template_id, "template_id")
         return await self.request.get(f"/templates/{_quote_path_segment(template_id)}")
@@ -146,7 +146,7 @@ class AsyncTransloadit:
 
     async def list_templates(self, params: Optional[dict] = None):
         """
-        Get the list of templates.
+        Retrieve list of Templates.
         """
         return await self.request.get("/templates", params=params)
 
@@ -158,14 +158,14 @@ class AsyncTransloadit:
 
     async def update_template(self, template_id: str, data: dict):
         """
-        Update the template specified by the 'template_id'.
+        Edit a Template.
         """
         template_id = require_path_id(template_id, "template_id")
         return await self.request.put(f"/templates/{_quote_path_segment(template_id)}", data=data)
 
     async def delete_template(self, template_id: str):
         """
-        Delete the template specified by the 'template_id'.
+        Delete a Template.
         """
         template_id = require_path_id(template_id, "template_id")
         return await self.request.delete(f"/templates/{_quote_path_segment(template_id)}")
@@ -226,7 +226,7 @@ class AsyncTransloadit:
 
     async def get_bill(self, month: int, year: int):
         """
-        Get the bill for the specified month and year.
+        Retrieve a month’s bill.
         """
         return await self.request.get(f"/bill/{year}-{month:02d}")
 
