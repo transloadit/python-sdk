@@ -37,7 +37,10 @@ class Response:
             return self._response.json()
         except ValueError:
             try:
-                return self._response.text
+                return self._response.content.decode(
+                    self._response.encoding or "utf-8",
+                    errors="strict",
+                )
             except UnicodeDecodeError:
                 return self._response.content
 

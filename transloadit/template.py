@@ -30,8 +30,11 @@ class Template(optionbuilder.OptionBuilder):
         """
         data = self.get_options()
         steps = data.pop("steps")
-        template_content = dict(data.pop("template", {}) or {})
+        template = data.pop("template", None)
+        template_content = dict(template) if isinstance(template, dict) else template or {}
         if steps:
+            if not isinstance(template_content, dict):
+                raise ValueError("template must be an object when steps are supplied.")
             template_content["steps"] = steps
         data.update({"name": self.name, "template": template_content})
         return self.transloadit.request.post("/templates", data=data)

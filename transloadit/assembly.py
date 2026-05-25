@@ -159,9 +159,7 @@ class Assembly(optionbuilder.OptionBuilder):
 
             if resumable and self.files:
                 if not assembly_url or not tus_url:
-                    raise RuntimeError(
-                        f"Resumable assembly response is missing upload URLs: {response_data!r}"
-                    )
+                    raise RuntimeError("Resumable assembly response is missing upload URLs.")
                 self._do_tus_upload(assembly_url, tus_url, tus_retries)
 
             if wait:

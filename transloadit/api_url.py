@@ -41,8 +41,17 @@ def should_sign_api_url(url, service):
     ):
         return True
 
+    service_hostname = (parsed_service.hostname or "").lower()
+    service_is_transloadit_api = service_hostname == "api2.transloadit.com" or (
+        service_hostname.startswith("api2-")
+        and service_hostname.endswith(".transloadit.com")
+    )
     hostname = (parsed_url.hostname or "").lower()
-    return parsed_url.scheme == "https" and (
-        hostname == "api2.transloadit.com"
-        or (hostname.startswith("api2-") and hostname.endswith(".transloadit.com"))
+    url_is_transloadit_api = hostname == "api2.transloadit.com" or (
+        hostname.startswith("api2-") and hostname.endswith(".transloadit.com")
+    )
+    return (
+        service_is_transloadit_api
+        and parsed_url.scheme == "https"
+        and url_is_transloadit_api
     )

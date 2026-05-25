@@ -1179,7 +1179,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
             with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=incomplete_response)) as post_mock:
                 with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
-                    with self.assertRaisesRegex(RuntimeError, "ASSEMBLY_PROCESSING"):
+                    with self.assertRaisesRegex(RuntimeError, "missing upload URLs"):
                         await assembly.create(resumable=True)
 
         post_mock.assert_awaited_once()

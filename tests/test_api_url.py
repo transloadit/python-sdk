@@ -12,3 +12,10 @@ class ApiUrlTest(unittest.TestCase):
             )
         )
 
+    def test_should_not_sign_transloadit_url_for_custom_service(self):
+        self.assertFalse(
+            should_sign_api_url(
+                "https://api2-freja.transloadit.com/assemblies/abc",
+                "https://uploads.example.test",
+            )
+        )
