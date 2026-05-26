@@ -752,6 +752,49 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         )
         sleep_mock.assert_awaited_once_with(0)
 
+    async def test_async_wait_for_assembly_polls_until_terminal(self):
+        responses = [
+            Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200),
+            Response(data={"ok": "ASSEMBLY_EXECUTING"}, status_code=200),
+            Response(data={"ok": "ASSEMBLY_COMPLETED"}, status_code=200),
+        ]
+        assembly_url = f"{self.server.base_url}/assemblies/assembly-123"
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            with mock.patch.object(
+                client,
+                "get_assembly",
+                new=mock.AsyncMock(side_effect=responses),
+            ) as get_mock:
+                with mock.patch(
+                    "transloadit.async_client.asyncio.sleep",
+                    new_callable=mock.AsyncMock,
+                ) as sleep_mock:
+                    response = await client.wait_for_assembly(assembly_url)
+
+        self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
+        self.assertEqual(
+            get_mock.await_args_list,
+            [
+                mock.call(assembly_url=assembly_url),
+                mock.call(assembly_url=assembly_url),
+                mock.call(assembly_url=assembly_url),
+            ],
+        )
+        self.assertEqual(sleep_mock.await_args_list, [mock.call(1), mock.call(1)])
+
+    async def test_async_wait_for_assembly_rejects_non_json_poll_response(self):
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            with mock.patch.object(
+                client,
+                "get_assembly",
+                new=mock.AsyncMock(return_value=Response(data="plain response", status_code=502)),
+            ):
+                with self.assertRaises(RuntimeError):
+                    await client.wait_for_assembly(
+                        f"{self.server.base_url}/assemblies/assembly-123"
+                    )
+
     def test_async_signed_smart_cdn_url_matches_sync_and_rejects_bad_types(self):
         async_client = AsyncTransloadit("test-key", "test-secret")
         sync_client = Transloadit("test-key", "test-secret")

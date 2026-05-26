@@ -11,6 +11,7 @@ import requests_mock
 
 from . import request_body_matcher
 from transloadit.client import Transloadit
+from transloadit.response import Response
 
 
 def get_expected_url(params):
@@ -76,6 +77,38 @@ class ClientTest(unittest.TestCase):
         response = self.transloadit.get_assembly(assembly_id=id_)
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
         self.assertEqual(response.data["assembly_id"], "abcdef12345")
+
+    def test_wait_for_assembly_polls_until_terminal(self):
+        responses = [
+            Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200),
+            Response(data={"ok": "ASSEMBLY_EXECUTING"}, status_code=200),
+            Response(data={"ok": "ASSEMBLY_COMPLETED"}, status_code=200),
+        ]
+        assembly_url = "https://api2.example/assemblies/assembly-123"
+
+        with mock.patch.object(self.transloadit, "get_assembly", side_effect=responses) as get_mock:
+            with mock.patch("transloadit.client.sleep") as sleep_mock:
+                response = self.transloadit.wait_for_assembly(assembly_url)
+
+        self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
+        self.assertEqual(
+            get_mock.call_args_list,
+            [
+                mock.call(assembly_url=assembly_url),
+                mock.call(assembly_url=assembly_url),
+                mock.call(assembly_url=assembly_url),
+            ],
+        )
+        self.assertEqual(sleep_mock.call_args_list, [mock.call(1), mock.call(1)])
+
+    def test_wait_for_assembly_rejects_non_json_poll_response(self):
+        with mock.patch.object(
+            self.transloadit,
+            "get_assembly",
+            return_value=Response(data="plain response", status_code=502),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.transloadit.wait_for_assembly("https://api2.example/assemblies/assembly-123")
 
     def test_quotes_path_ids(self):
         with mock.patch.object(self.transloadit.request, 'get') as get_mock:

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 from urllib.parse import quote
 
@@ -238,6 +239,35 @@ class AsyncTransloadit:
         return await self.request.put(f"/template_credentials/{_quote_path_segment(identifier)}", data=data)
 
     # </api2-generated-endpoints>
+
+    # <api2-generated-features>
+    # This block is generated from Transloadit API2 contracts. If it looks wrong,
+    # please report the issue instead of editing this block by hand; the source fix
+    # belongs in the contract generator so all SDKs stay in sync.
+
+    async def wait_for_assembly(self, assembly_url: str):
+        """
+        Wait for an Assembly to finish uploading and executing.
+        The assembly URL should be the assembly_ssl_url returned by create_assembly.
+        """
+        while True:
+            response = await self.get_assembly(assembly_url=assembly_url)
+            data = response.data
+
+            if not isinstance(data, dict):
+                raise RuntimeError(f"Unexpected non-JSON response ({response.status_code}).")
+
+            # Abort polling if the assembly has entered an error state
+            if data.get("error"):
+                return response
+
+            # The polling is done if the assembly is not uploading or executing anymore.
+            if data.get("ok") not in ("ASSEMBLY_UPLOADING", "ASSEMBLY_EXECUTING"):
+                return response
+
+            await asyncio.sleep(1)
+
+    # </api2-generated-features>
 
     def new_template(self, name: str, params: Optional[dict] = None) -> async_template.AsyncTemplate:
         """
