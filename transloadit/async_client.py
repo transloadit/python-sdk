@@ -49,6 +49,10 @@ class AsyncTransloadit:
         return async_assembly.AsyncAssembly(self, options=params)
 
     # <api2-generated-endpoints>
+    # This block is generated from Transloadit API2 contracts. If it looks wrong,
+    # please report the issue instead of editing this block by hand; the source fix
+    # belongs in the contract generator so all SDKs stay in sync.
+
     async def create_assembly(self, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
         """
         Create a new Assembly.
