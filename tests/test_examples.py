@@ -36,6 +36,11 @@ def test_examples_import_without_side_effects():
         runpy.run_path(str(example_path), run_name="__example_import__")
 
 
+def test_devdock_examples_import_without_side_effects():
+    for example_path in sorted(EXAMPLES_ROOT.glob("api2-devdock-*/main.py")):
+        runpy.run_path(str(example_path), run_name="__example_import__")
+
+
 def test_smart_cdn_example_runs_without_network():
     env = {
         **os.environ,

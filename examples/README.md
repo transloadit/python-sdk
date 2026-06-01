@@ -26,6 +26,13 @@ Transloadit and may create temporary Assemblies or Templates in your account.
 These quickstart examples run in CI against a dedicated Transloadit test account, so they
 are kept in sync with the SDK and API.
 
+## API2 Contract QA Examples
+
+`api2-devdock-*` examples are runnable usage examples that API2's contract QA runs
+against devdock. They expect API2 to inject a scenario JSON file via
+`API2_SDK_EXAMPLE_SCENARIO`, so the API/TUS facts stay in API2 contracts while the
+example code remains normal SDK usage.
+
 ## Advanced Examples
 
 These examples require pre-created Templates and, depending on your Template, third-party
