@@ -156,30 +156,22 @@ def wait_for_assembly(client, scenario, create_response):
     return response_data(client.wait_for_assembly(wait_input), feature["featureId"])
 
 
-def run_assertions(scenario, create_response, status, upload_url):
-    context = {
-        "captured": {"uploadUrl": upload_url},
-        "createResponse": create_response,
-        "scenario": scenario,
-        "status": status,
-    }
+def write_result(create_response, status, upload_url):
+    result_path = os.environ.get("API2_SDK_EXAMPLE_RESULT")
+    if not result_path:
+        return
 
-    for index, assertion in enumerate(scenario["assertions"]):
-        label = f"assertions[{index}]"
-        actual = resolve_value(assertion["actual"], context, f"{label}.actual")
-        expected = resolve_value(assertion["expected"], context, f"{label}.expected")
-
-        if assertion["kind"] == "equals":
-            if actual != expected:
-                fail(f"{label} expected {expected!r}, got {actual!r}")
-            continue
-
-        if assertion["kind"] == "length":
-            if len(actual) != expected:
-                fail(f"{label} expected length {expected!r}, got {len(actual)!r}")
-            continue
-
-        fail(f"{label} has unsupported assertion kind {assertion['kind']!r}")
+    with Path(result_path).open("w", encoding="utf-8") as result_file:
+        json.dump(
+            {
+                "createResponse": create_response,
+                "status": status,
+                "uploadUrl": upload_url,
+            },
+            result_file,
+            indent=2,
+        )
+        result_file.write("\n")
 
 
 def main():
@@ -194,7 +186,7 @@ def main():
     create_response = create_assembly(client, scenario)
     upload_url = upload_with_tus(scenario, create_response)
     status = wait_for_assembly(client, scenario, create_response)
-    run_assertions(scenario, create_response, status, upload_url)
+    write_result(create_response, status, upload_url)
 
     print(f"Python Transloadit SDK devdock scenario {scenario['scenarioId']} passed for {endpoint}")
 
