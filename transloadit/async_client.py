@@ -245,6 +245,28 @@ class AsyncTransloadit:
     # please report the issue instead of editing this block by hand; the source fix
     # belongs in the contract generator so all SDKs stay in sync.
 
+    async def create_tus_assembly(self, file_count: int):
+        """
+        Create a TUS-ready Assembly that waits for the requested number of resumable uploads before execution continues.
+        """
+        assembly = await self.create_assembly(
+            data={
+                "await": False,
+                "steps": {
+                    ":original": {
+                        "output_meta": True,
+                        "result": "debug",
+                        "robot": "/upload/handle",
+                    },
+                },
+            },
+            extra_data={
+                "num_expected_upload_files": file_count,
+            },
+        )
+
+        return assembly
+
     async def wait_for_assembly(self, assembly_url: str):
         """
         Wait for an Assembly to finish uploading and executing.

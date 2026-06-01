@@ -797,6 +797,32 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                         f"{self.server.base_url}/assemblies/assembly-123"
                     )
 
+    async def test_async_create_tus_assembly_uses_contract_payload(self):
+        expected_response = Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200)
+
+        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
+            with mock.patch.object(
+                client,
+                "create_assembly",
+                new=mock.AsyncMock(return_value=expected_response),
+            ) as create_mock:
+                response = await client.create_tus_assembly(2)
+
+        self.assertIs(response, expected_response)
+        create_mock.assert_awaited_once_with(
+            data={
+                "await": False,
+                "steps": {
+                    ":original": {
+                        "output_meta": True,
+                        "result": "debug",
+                        "robot": "/upload/handle",
+                    },
+                },
+            },
+            extra_data={"num_expected_upload_files": 2},
+        )
+
     def test_async_signed_smart_cdn_url_matches_sync_and_rejects_bad_types(self):
         async_client = AsyncTransloadit("test-key", "test-secret")
         sync_client = Transloadit("test-key", "test-secret")

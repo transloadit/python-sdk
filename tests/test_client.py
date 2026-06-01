@@ -110,6 +110,29 @@ class ClientTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.transloadit.wait_for_assembly("https://api2.example/assemblies/assembly-123")
 
+    def test_create_tus_assembly_uses_contract_payload(self):
+        expected_response = Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200)
+
+        with mock.patch.object(
+            self.transloadit, "create_assembly", return_value=expected_response
+        ) as create_mock:
+            response = self.transloadit.create_tus_assembly(2)
+
+        self.assertIs(response, expected_response)
+        create_mock.assert_called_once_with(
+            data={
+                "await": False,
+                "steps": {
+                    ":original": {
+                        "output_meta": True,
+                        "result": "debug",
+                        "robot": "/upload/handle",
+                    },
+                },
+            },
+            extra_data={"num_expected_upload_files": 2},
+        )
+
     def test_quotes_path_ids(self):
         with mock.patch.object(self.transloadit.request, 'get') as get_mock:
             self.transloadit.get_assembly(assembly_id='assembly/with?chars')
