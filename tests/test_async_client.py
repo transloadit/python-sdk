@@ -528,19 +528,21 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             get_mock.await_args_list,
             [
                 mock.call("/assembly_notifications/assembly%2Fwith%3Fchars"),
-                mock.call("/templates/builtin/builtin%2Fwith%3Fchars"),
-                mock.call("/templates/template%2Fwith%3Fchars/full"),
-                mock.call("/templates/builtin/builtin%2Ffull%3Fchars/full"),
-                mock.call("/queues/job_slots"),
-                mock.call("/template_credentials"),
-                mock.call("/template_credentials/types"),
-                mock.call("/template_credentials/cred%2Fwith%3Fchars"),
+                mock.call("/templates/builtin/builtin%2Fwith%3Fchars", params=None),
+                mock.call("/templates/template%2Fwith%3Fchars/full", params=None),
+                mock.call("/templates/builtin/builtin%2Ffull%3Fchars/full", params=None),
+                mock.call("/queues/job_slots", params=None),
+                mock.call("/template_credentials", params=None),
+                mock.call("/template_credentials/types", params=None),
+                mock.call("/template_credentials/cred%2Fwith%3Fchars", params=None),
             ],
         )
         put_mock.assert_awaited_once_with(
             "/template_credentials/cred%2Fwith%3Fchars", data=credential_data
         )
-        delete_mock.assert_awaited_once_with("/template_credentials/cred%2Fwith%3Fchars")
+        delete_mock.assert_awaited_once_with(
+            "/template_credentials/cred%2Fwith%3Fchars", data=None
+        )
 
     async def test_async_generated_endpoint_methods_reject_empty_path_ids(self):
         client = AsyncTransloadit("key", "secret", service=self.server.base_url)

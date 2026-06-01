@@ -82,7 +82,7 @@ class Transloadit:
         """
         return self.request.get("/assemblies", params=params)
 
-    def get_assembly(self, assembly_id: str = None, assembly_url: str = None):
+    def get_assembly(self, assembly_id: str = None, assembly_url: str = None, params: Optional[dict] = None):
         """
         Retrieve an Assembly Status.
         """
@@ -90,7 +90,7 @@ class Transloadit:
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
         url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
-        return self.request.get(url)
+        return self.request.get(url, params=params)
 
     def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
@@ -126,11 +126,11 @@ class Transloadit:
 
         return self.request.get(f"/assembly_notifications/{_quote_path_segment(assembly_id)}")
 
-    def get_bill(self, month: int, year: int):
+    def get_bill(self, month: int, year: int, params: Optional[dict] = None):
         """
         Retrieve a month’s bill.
         """
-        return self.request.get(f"/bill/{year}-{month:02d}")
+        return self.request.get(f"/bill/{year}-{month:02d}", params=params)
 
     def list_templates(self, params: Optional[dict] = None):
         """
@@ -144,37 +144,37 @@ class Transloadit:
         """
         return self.request.post("/templates", data=data)
 
-    def get_template(self, template_id: str):
+    def get_template(self, template_id: str, params: Optional[dict] = None):
         """
         Retrieve a Template.
         """
         template_id = require_path_id(template_id, "template_id")
 
-        return self.request.get(f"/templates/{_quote_path_segment(template_id)}")
+        return self.request.get(f"/templates/{_quote_path_segment(template_id)}", params=params)
 
-    def get_builtin_template(self, builtin_template_slug: str):
+    def get_builtin_template(self, builtin_template_slug: str, params: Optional[dict] = None):
         """
         Get Builtin Template.
         """
         builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
 
-        return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}")
+        return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}", params=params)
 
-    def get_template_full(self, template_id_or_name: str):
+    def get_template_full(self, template_id_or_name: str, params: Optional[dict] = None):
         """
         Get Template Full.
         """
         template_id_or_name = require_path_id(template_id_or_name, "template_id_or_name")
 
-        return self.request.get(f"/templates/{_quote_path_segment(template_id_or_name)}/full")
+        return self.request.get(f"/templates/{_quote_path_segment(template_id_or_name)}/full", params=params)
 
-    def get_builtin_template_full(self, builtin_template_slug: str):
+    def get_builtin_template_full(self, builtin_template_slug: str, params: Optional[dict] = None):
         """
         Get Builtin Template Full.
         """
         builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
 
-        return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}/full")
+        return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}/full", params=params)
 
     def update_template(self, template_id: str, data: Optional[dict] = None):
         """
@@ -184,31 +184,31 @@ class Transloadit:
 
         return self.request.put(f"/templates/{_quote_path_segment(template_id)}", data=data)
 
-    def delete_template(self, template_id: str):
+    def delete_template(self, template_id: str, data: Optional[dict] = None):
         """
         Delete a Template.
         """
         template_id = require_path_id(template_id, "template_id")
 
-        return self.request.delete(f"/templates/{_quote_path_segment(template_id)}")
+        return self.request.delete(f"/templates/{_quote_path_segment(template_id)}", data=data)
 
-    def list_priority_job_slots(self):
+    def list_priority_job_slots(self, params: Optional[dict] = None):
         """
         Retrieve currently used priority job slots.
         """
-        return self.request.get("/queues/job_slots")
+        return self.request.get("/queues/job_slots", params=params)
 
-    def list_template_credentials(self):
+    def list_template_credentials(self, params: Optional[dict] = None):
         """
         Retrieve list of Template Credentials.
         """
-        return self.request.get("/template_credentials")
+        return self.request.get("/template_credentials", params=params)
 
-    def list_template_credential_types(self):
+    def list_template_credential_types(self, params: Optional[dict] = None):
         """
         List Template Credential Types.
         """
-        return self.request.get("/template_credentials/types")
+        return self.request.get("/template_credentials/types", params=params)
 
     def validate_template_credential_oauth_on_create(self, data: Optional[dict] = None):
         """
@@ -222,21 +222,21 @@ class Transloadit:
         """
         return self.request.post("/template_credentials", data=data)
 
-    def get_template_credentials(self, identifier: str):
+    def get_template_credentials(self, identifier: str, params: Optional[dict] = None):
         """
         Retrieve a Template Credential.
         """
         identifier = require_path_id(identifier, "identifier")
 
-        return self.request.get(f"/template_credentials/{_quote_path_segment(identifier)}")
+        return self.request.get(f"/template_credentials/{_quote_path_segment(identifier)}", params=params)
 
-    def delete_template_credentials(self, identifier: str):
+    def delete_template_credentials(self, identifier: str, data: Optional[dict] = None):
         """
         Delete a Template Credential.
         """
         identifier = require_path_id(identifier, "identifier")
 
-        return self.request.delete(f"/template_credentials/{_quote_path_segment(identifier)}")
+        return self.request.delete(f"/template_credentials/{_quote_path_segment(identifier)}", data=data)
 
     def update_template_credentials(self, identifier: str, data: Optional[dict] = None):
         """
