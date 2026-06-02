@@ -53,7 +53,10 @@ def template_content(content):
     if not isinstance(content, dict):
         fail(f"template content must be an object: {content!r}")
 
-    return dict(content)
+    rendered = dict(content.get("additionalProperties") or {})
+    rendered["steps"] = content["steps"]
+
+    return rendered
 
 
 def template_payload(name, config):
