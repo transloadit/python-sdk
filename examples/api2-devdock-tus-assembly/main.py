@@ -83,8 +83,25 @@ def response_data(response, operation):
     return data
 
 
+def feature_step(scenario, collection_name, feature_id, kind):
+    steps = scenario.get(collection_name)
+    if not isinstance(steps, list):
+        fail(f"{collection_name} must be a list")
+
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            fail(f"{collection_name}[{index}] must be an object")
+        if step.get("featureId") != feature_id:
+            continue
+        if step.get("kind") != kind:
+            fail(f"{collection_name}[{index}] must have kind {kind!r}")
+        return step
+
+    fail(f"scenario has no {collection_name} step for feature {feature_id!r}")
+
+
 def create_assembly(client, scenario):
-    feature = scenario["createTusAssembly"]
+    feature = feature_step(scenario, "preparations", "createTusAssembly", "feature-call")
     input_values = list(feature["input"].values())
     if len(input_values) != 1:
         fail(f"{feature['featureId']} expected exactly one input value")
@@ -150,7 +167,7 @@ def render_path_template(template_config, context, label):
 
 
 def wait_for_assembly(client, scenario, create_response):
-    feature = scenario["waitForAssembly"]
+    feature = feature_step(scenario, "observations", "waitForAssembly", "feature-poll")
     context = {"createResponse": create_response, "scenario": scenario}
     wait_input = render_path_template(feature["input"], context, feature["featureId"])
     return response_data(client.wait_for_assembly(wait_input), feature["featureId"])
