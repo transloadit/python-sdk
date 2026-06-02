@@ -333,11 +333,11 @@ class Transloadit:
         if uploadResponse.status_code != 204:
             raise RuntimeError(f"TUS upload returned HTTP {uploadResponse.status_code}, expected 204")
         try:
-            remote_offset = int(uploadResponse.headers.get("Upload-Offset", ""))
+            upload_offset = int(uploadResponse.headers.get("Upload-Offset", ""))
         except ValueError as error:
             raise RuntimeError("TUS upload returned an invalid Upload-Offset header") from error
-        if remote_offset != len(content):
-            raise RuntimeError(f"TUS upload offset {remote_offset}, expected {len(content)}")
+        if upload_offset != len(content):
+            raise RuntimeError(f"TUS upload offset {upload_offset}, expected {len(content)}")
 
         completedAssembly = self.wait_for_assembly(createdAssembly.data.get("assembly_ssl_url"))
 
