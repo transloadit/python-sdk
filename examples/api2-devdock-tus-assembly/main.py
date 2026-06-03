@@ -41,48 +41,50 @@ def response_data(response, operation):
     return data
 
 
-def feature_step(scenario, collection_name, feature_id, kind):
-    steps = scenario.get(collection_name)
-    if not isinstance(steps, list):
-        fail(f"{collection_name} must be a list")
+def sdk_feature_call(scenario, feature_id):
+    feature_calls = scenario.get("sdkFeatureCalls")
+    if not isinstance(feature_calls, list):
+        fail("sdkFeatureCalls must be a list")
 
-    for index, step in enumerate(steps):
-        if not isinstance(step, dict):
-            fail(f"{collection_name}[{index}] must be an object")
-        if step.get("featureId") != feature_id:
+    for index, feature_call in enumerate(feature_calls):
+        if not isinstance(feature_call, dict):
+            fail(f"sdkFeatureCalls[{index}] must be an object")
+        if feature_call.get("featureId") != feature_id:
             continue
-        if step.get("kind") != kind:
-            fail(f"{collection_name}[{index}] must have kind {kind!r}")
-        return step
+        if feature_call.get("kind") != "sdk-feature-call":
+            fail(f"sdkFeatureCalls[{index}] must have kind 'sdk-feature-call'")
+        return feature_call
 
-    fail(f"scenario has no {collection_name} step for feature {feature_id!r}")
-
-
-def file_count(scenario):
-    feature = feature_step(scenario, "preparations", "createTusAssembly", "feature-call")
-    input_values = list(feature["input"].values())
-    if len(input_values) != 1:
-        fail(f"{feature['featureId']} expected exactly one input value")
-
-    return input_values[0]
+    fail(f"scenario has no SDK feature call for feature {feature_id!r}")
 
 
-def scenario_bytes(scenario):
-    source = scenario["upload"]["source"]
-    if source["kind"] != "bytes":
-        fail(f"unsupported scenario source kind {source['kind']!r}")
-    if source["encoding"] != "utf8":
-        fail(f"unsupported scenario source encoding {source['encoding']!r}")
-    return source["value"].encode("utf-8")
+def upload_tus_assembly_input(scenario):
+    feature_call = sdk_feature_call(scenario, "uploadTusAssembly")
+    input_values = feature_call.get("input")
+    if not isinstance(input_values, dict):
+        fail("sdkFeatureCalls.uploadTusAssembly.input must be an object")
+
+    return input_values
 
 
-def upload_config(scenario):
-    upload = scenario["upload"]
+def scenario_bytes(upload):
+    content = upload.get("content")
+    if not isinstance(content, str):
+        fail("sdkFeatureCalls.uploadTusAssembly.input.upload.content must be a string")
+
+    return content.encode("utf-8")
+
+
+def upload_config(input_values):
+    upload = input_values.get("upload")
+    if not isinstance(upload, dict):
+        fail("sdkFeatureCalls.uploadTusAssembly.input.upload must be an object")
+
     return {
-        "content": scenario_bytes(scenario),
-        "fieldname": upload["fieldName"],
-        "filename": upload["fileName"],
-        "user_meta": upload.get("userMeta") or {},
+        "content": scenario_bytes(upload),
+        "fieldname": upload["fieldname"],
+        "filename": upload["filename"],
+        "user_meta": upload.get("user_meta") or {},
     }
 
 
@@ -113,9 +115,10 @@ def main():
         service=endpoint,
     )
 
-    upload = upload_config(scenario)
+    input_values = upload_tus_assembly_input(scenario)
+    upload = upload_config(input_values)
     completed_assembly, upload_url = client.upload_tus_assembly(
-        file_count(scenario),
+        input_values["file_count"],
         upload["content"],
         upload["fieldname"],
         upload["filename"],
