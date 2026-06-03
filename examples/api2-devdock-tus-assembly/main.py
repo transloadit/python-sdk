@@ -41,28 +41,22 @@ def response_data(response, operation):
     return data
 
 
-def sdk_feature_call(scenario, feature_id):
-    feature_calls = scenario.get("sdkFeatureCalls")
-    if not isinstance(feature_calls, list):
-        fail("sdkFeatureCalls must be a list")
-
-    for index, feature_call in enumerate(feature_calls):
-        if not isinstance(feature_call, dict):
-            fail(f"sdkFeatureCalls[{index}] must be an object")
-        if feature_call.get("featureId") != feature_id:
-            continue
-        if feature_call.get("kind") != "sdk-feature-call":
-            fail(f"sdkFeatureCalls[{index}] must have kind 'sdk-feature-call'")
-        return feature_call
-
-    fail(f"scenario has no SDK feature call for feature {feature_id!r}")
-
-
-def upload_tus_assembly_input(scenario):
-    feature_call = sdk_feature_call(scenario, "uploadTusAssembly")
-    input_values = feature_call.get("input")
+def example_input(scenario):
+    input_values = scenario.get("exampleInput")
     if not isinstance(input_values, dict):
-        fail("sdkFeatureCalls.uploadTusAssembly.input must be an object")
+        fail("exampleInput must be an object")
+
+    return input_values
+
+
+def upload_tus_assembly_input(example_input_values):
+    feature_inputs = example_input_values.get("sdkFeatureInputs")
+    if not isinstance(feature_inputs, dict):
+        fail("exampleInput.sdkFeatureInputs must be an object")
+
+    input_values = feature_inputs.get("uploadTusAssembly")
+    if not isinstance(input_values, dict):
+        fail("exampleInput.sdkFeatureInputs.uploadTusAssembly must be an object")
 
     return input_values
 
@@ -70,7 +64,7 @@ def upload_tus_assembly_input(scenario):
 def scenario_bytes(upload):
     content = upload.get("content")
     if not isinstance(content, str):
-        fail("sdkFeatureCalls.uploadTusAssembly.input.upload.content must be a string")
+        fail("exampleInput.sdkFeatureInputs.uploadTusAssembly.upload.content must be a string")
 
     return content.encode("utf-8")
 
@@ -78,7 +72,7 @@ def scenario_bytes(upload):
 def upload_config(input_values):
     upload = input_values.get("upload")
     if not isinstance(upload, dict):
-        fail("sdkFeatureCalls.uploadTusAssembly.input.upload must be an object")
+        fail("exampleInput.sdkFeatureInputs.uploadTusAssembly.upload must be an object")
 
     return {
         "content": scenario_bytes(upload),
@@ -115,7 +109,8 @@ def main():
         service=endpoint,
     )
 
-    input_values = upload_tus_assembly_input(scenario)
+    example_input_values = example_input(scenario)
+    input_values = upload_tus_assembly_input(example_input_values)
     upload = upload_config(input_values)
     completed_assembly, upload_url = client.upload_tus_assembly(
         input_values["file_count"],
@@ -127,7 +122,10 @@ def main():
     status = response_data(completed_assembly, "uploadTusAssembly")
     write_result(status, status, upload_url)
 
-    print(f"Python Transloadit SDK devdock scenario {scenario['scenarioId']} passed for {endpoint}")
+    print(
+        "Python Transloadit SDK devdock scenario "
+        f"{example_input_values['scenarioId']} passed for {endpoint}"
+    )
 
 
 if __name__ == "__main__":
