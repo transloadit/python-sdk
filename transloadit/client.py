@@ -255,7 +255,7 @@ class Transloadit:
 
     def create_tus_assembly(self, file_count: int):
         """
-        Create a TUS-ready Assembly that waits for the requested number of resumable uploads before execution continues.
+        Creates a TUS-ready Assembly that waits for the requested number of resumable uploads before execution continues.
         """
         assembly = self.create_assembly(
             data={
@@ -277,7 +277,7 @@ class Transloadit:
 
     def upload_tus_assembly(self, file_count: int, content: bytes, fieldname: str, filename: str, user_meta: Optional[dict] = None):
         """
-        Create a TUS-ready Assembly, upload one file with the TUS protocol, and wait for the Assembly to finish.
+        Creates a TUS-ready Assembly, uploads one file with the TUS protocol, and waits for the Assembly to finish.
         """
         createdAssembly = self.create_tus_assembly(file_count)
 
@@ -339,14 +339,17 @@ class Transloadit:
         if upload_offset != len(content):
             raise RuntimeError(f"TUS upload offset {upload_offset}, expected {len(content)}")
 
-        completedAssembly = self.wait_for_assembly(createdAssembly.data.get("assembly_ssl_url"))
+        createdAssemblyAssemblySslUrl = createdAssembly.data.get("assembly_ssl_url")
+        if not createdAssemblyAssemblySslUrl:
+            raise RuntimeError("uploadTusAssembly needs createdAssembly.assembly_ssl_url")
+        completedAssembly = self.wait_for_assembly(createdAssemblyAssemblySslUrl)
 
         return completedAssembly, uploadUrlText
 
     def wait_for_assembly(self, assembly_url: str):
         """
-        Wait for an Assembly to finish uploading and executing.
-        The assembly URL should be the assembly_ssl_url returned by create_assembly.
+        Waits for an Assembly to finish uploading and executing.
+        Use the returned assembly_ssl_url as the assembly URL.
         """
         while True:
             response = self.get_assembly(assembly_url=assembly_url)
