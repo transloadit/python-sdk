@@ -283,7 +283,7 @@ class AsyncTransloadit:
         metadataMap = {}
         if user_meta:
             metadataMap.update({str(key): str(value) for key, value in user_meta.items()})
-        metadataMap["assembly_url"] = str(createdAssembly.data.get("assembly_url"))
+        metadataMap["assembly_url"] = str(createdAssembly.data.get("assembly_ssl_url"))
         metadataMap["fieldname"] = str(fieldname)
         metadataMap["filename"] = str(filename)
 
