@@ -1,6 +1,7 @@
 import asyncio
+import base64
 from typing import Optional
-from urllib.parse import quote
+from urllib.parse import quote, urljoin
 
 from . import async_assembly, async_request, async_template
 from .api_url import normalize_service_url, require_path_id
@@ -272,9 +273,6 @@ class AsyncTransloadit:
         Creates a TUS-ready Assembly, uploads one file with the TUS protocol, and waits for the Assembly to finish.
         """
         created_assembly = await self.create_tus_assembly(file_count)
-
-        import base64
-        from urllib.parse import urljoin
 
         endpoint_url = created_assembly.data.get("tus_url")
         if not endpoint_url:
