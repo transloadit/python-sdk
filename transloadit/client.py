@@ -279,72 +279,72 @@ class Transloadit:
         """
         Creates a TUS-ready Assembly, uploads one file with the TUS protocol, and waits for the Assembly to finish.
         """
-        createdAssembly = self.create_tus_assembly(file_count)
+        created_assembly = self.create_tus_assembly(file_count)
 
         import base64
         from urllib.parse import urljoin
 
         import requests
 
-        endpointUrl = createdAssembly.data.get("tus_url")
-        if not endpointUrl:
+        endpoint_url = created_assembly.data.get("tus_url")
+        if not endpoint_url:
             raise RuntimeError("TUS singleUploadLifecycle needs input.endpointUrl")
 
-        metadataMap = {}
+        metadata_map = {}
         if user_meta:
-            metadataMap.update({str(key): str(value) for key, value in user_meta.items()})
-        metadataMap["assembly_url"] = str(createdAssembly.data.get("assembly_ssl_url"))
-        metadataMap["fieldname"] = str(fieldname)
-        metadataMap["filename"] = str(filename)
+            metadata_map.update({str(key): str(value) for key, value in user_meta.items()})
+        metadata_map["assembly_url"] = str(created_assembly.data.get("assembly_ssl_url"))
+        metadata_map["fieldname"] = str(fieldname)
+        metadata_map["filename"] = str(filename)
 
-        createHeaders = {}
-        createHeaders["Tus-Resumable"] = "1.0.0"
-        createHeaders["Upload-Length"] = str(len(content))
-        createMetadataParts = []
-        for key, value in metadataMap.items():
+        create_headers = {}
+        create_headers["Tus-Resumable"] = "1.0.0"
+        create_headers["Upload-Length"] = str(len(content))
+        create_metadata_parts = []
+        for key, value in metadata_map.items():
             encoded_value = base64.b64encode(str(value).encode("utf-8")).decode("ascii")
-            createMetadataParts.append(f"{key} {encoded_value}")
-        createHeaders["Upload-Metadata"] = ",".join(createMetadataParts)
-        createResponse = requests.request(
+            create_metadata_parts.append(f"{key} {encoded_value}")
+        create_headers["Upload-Metadata"] = ",".join(create_metadata_parts)
+        create_response = requests.request(
             "POST",
-            endpointUrl,
+            endpoint_url,
             data=b"",
-            headers=createHeaders,
+            headers=create_headers,
             timeout=request.TIMEOUT,
         )
-        if createResponse.status_code != 201:
-            raise RuntimeError(f"TUS create returned HTTP {createResponse.status_code}, expected 201")
-        uploadUrlLocation = createResponse.headers.get("Location")
-        if not uploadUrlLocation:
+        if create_response.status_code != 201:
+            raise RuntimeError(f"TUS create returned HTTP {create_response.status_code}, expected 201")
+        upload_url_location = create_response.headers.get("Location")
+        if not upload_url_location:
             raise RuntimeError("TUS create did not return a Location header")
-        uploadUrlText = urljoin(endpointUrl, uploadUrlLocation)
+        upload_url_text = urljoin(endpoint_url, upload_url_location)
 
-        uploadHeaders = {}
-        uploadHeaders["Tus-Resumable"] = "1.0.0"
-        uploadHeaders["Upload-Offset"] = "0"
-        uploadHeaders["Content-Type"] = "application/offset+octet-stream"
-        uploadResponse = requests.request(
+        upload_headers = {}
+        upload_headers["Tus-Resumable"] = "1.0.0"
+        upload_headers["Upload-Offset"] = "0"
+        upload_headers["Content-Type"] = "application/offset+octet-stream"
+        upload_response = requests.request(
             "PATCH",
-            uploadUrlText,
+            upload_url_text,
             data=content,
-            headers=uploadHeaders,
+            headers=upload_headers,
             timeout=request.TIMEOUT,
         )
-        if uploadResponse.status_code != 204:
-            raise RuntimeError(f"TUS upload returned HTTP {uploadResponse.status_code}, expected 204")
+        if upload_response.status_code != 204:
+            raise RuntimeError(f"TUS upload returned HTTP {upload_response.status_code}, expected 204")
         try:
-            upload_offset = int(uploadResponse.headers.get("Upload-Offset", ""))
+            upload_offset = int(upload_response.headers.get("Upload-Offset", ""))
         except ValueError as error:
             raise RuntimeError("TUS upload returned an invalid Upload-Offset header") from error
         if upload_offset != len(content):
             raise RuntimeError(f"TUS upload offset {upload_offset}, expected {len(content)}")
 
-        createdAssemblyAssemblySslUrl = createdAssembly.data.get("assembly_ssl_url")
-        if not createdAssemblyAssemblySslUrl:
+        created_assembly_assembly_ssl_url = created_assembly.data.get("assembly_ssl_url")
+        if not created_assembly_assembly_ssl_url:
             raise RuntimeError("uploadTusAssembly needs createdAssembly.assembly_ssl_url")
-        completedAssembly = self.wait_for_assembly(createdAssemblyAssemblySslUrl)
+        completed_assembly = self.wait_for_assembly(created_assembly_assembly_ssl_url)
 
-        return completedAssembly, uploadUrlText
+        return completed_assembly, upload_url_text
 
     def wait_for_assembly(self, assembly_url: str):
         """
