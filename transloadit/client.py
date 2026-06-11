@@ -278,6 +278,57 @@ class Transloadit:
 
         return assembly
 
+    def resume_tus_upload(self, upload_url: str, content: bytes, assembly_ssl_url: str):
+        """
+        Resumes an interrupted TUS upload from the server-reported offset and waits for the Assembly to finish.
+        """
+        stored_upload_url = upload_url
+        if not stored_upload_url:
+            raise RuntimeError("TUS resumeUpload needs input.storedUploadUrl")
+
+        offset_headers = {}
+        offset_headers["Tus-Resumable"] = "1.0.0"
+        offset_response = requests.request(
+            "HEAD",
+            stored_upload_url,
+            data=b"",
+            headers=offset_headers,
+            timeout=request.TIMEOUT,
+        )
+        if offset_response.status_code != 200:
+            raise RuntimeError(f"TUS offset returned HTTP {offset_response.status_code}, expected 200")
+        resume_offset_header = offset_response.headers.get("Upload-Offset")
+        if not resume_offset_header:
+            raise RuntimeError("TUS offset did not return a Upload-Offset header")
+        try:
+            resume_offset = int(resume_offset_header)
+        except ValueError as error:
+            raise RuntimeError("TUS offset returned an invalid Upload-Offset header") from error
+
+        upload_headers = {}
+        upload_headers["Tus-Resumable"] = "1.0.0"
+        upload_headers["Upload-Offset"] = str(resume_offset)
+        upload_headers["Content-Type"] = "application/offset+octet-stream"
+        upload_response = requests.request(
+            "PATCH",
+            stored_upload_url,
+            data=content[resume_offset:],
+            headers=upload_headers,
+            timeout=request.TIMEOUT,
+        )
+        if upload_response.status_code != 204:
+            raise RuntimeError(f"TUS upload returned HTTP {upload_response.status_code}, expected 204")
+        try:
+            upload_offset = int(upload_response.headers.get("Upload-Offset", ""))
+        except ValueError as error:
+            raise RuntimeError("TUS upload returned an invalid Upload-Offset header") from error
+        if upload_offset != len(content):
+            raise RuntimeError(f"TUS upload offset {upload_offset}, expected {len(content)}")
+
+        completed_assembly = self.wait_for_assembly(assembly_ssl_url)
+
+        return completed_assembly
+
     def upload_tus_assembly(self, file_count: int, content: bytes, fieldname: str, filename: str, user_meta: Optional[dict] = None):
         """
         Creates a TUS-ready Assembly, uploads one file with the TUS protocol, and waits for the Assembly to finish.

@@ -8,6 +8,7 @@ methods as normal user code would.
 import json
 import os
 from pathlib import Path
+from time import sleep
 
 from transloadit.client import Transloadit
 
@@ -115,6 +116,8 @@ def main():
             client.get_assembly(assembly_url=assembly_url),
             "getAssemblyStatus",
         )
+        # The Assembly list is eventually consistent: the API acknowledges creation before
+        # the list storage row lands, so poll briefly until the created Assembly shows up.
         listed = response_data(
             client.list_assemblies(
                 {
@@ -124,8 +127,21 @@ def main():
             ),
             "listAssemblies",
         )
-
         listed_items = list_items(listed)
+        for _attempt in range(20):
+            if any(item_assembly_id(item) == assembly_id for item in listed_items):
+                break
+            sleep(0.5)
+            listed = response_data(
+                client.list_assemblies(
+                    {
+                        "assembly_id": assembly_id,
+                        "pagesize": scenario["list"]["pageSize"],
+                    }
+                ),
+                "listAssemblies",
+            )
+            listed_items = list_items(listed)
         cancelled = response_data(
             client.cancel_assembly(assembly_url=assembly_url),
             "cancelAssembly",
