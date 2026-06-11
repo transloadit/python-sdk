@@ -1,18 +1,11 @@
-### A simple Transloadit Assembly that converts a .doc file to a .txt file. It then generates a .mp3 based on the .txt file using a text-to-speech Robot.
+"""Advanced example: process a document with a pre-created text-to-speech template.
 
-'''
-Template:
+This requires a Template in your Transloadit account with steps similar to:
 
 {
   "steps": {
-    ":original": {
-      "robot": "/upload/handle"
-    },
-    "convert": {
-      "use": ":original",
-      "robot": "/document/convert",
-      "format": "txt"
-    },
+    ":original": {"robot": "/upload/handle"},
+    "convert": {"use": ":original", "robot": "/document/convert", "format": "txt"},
     "speech": {
       "use": "convert",
       "robot": "/text/speak",
@@ -23,22 +16,51 @@ Template:
     }
   }
 }
-'''
 
-from transloadit import client
+Run from the repository root:
 
-tl = client.Transloadit('TRANSLOADIT_KEY', 'TRANSLOADIT_SECRET')
+    TRANSLOADIT_KEY=xxx TRANSLOADIT_SECRET=yyy TRANSLOADIT_TTS_TEMPLATE_ID=xxx \
+      poetry run python examples/file_to_tts.py
+"""
 
-def useTemplate(templateID, file_path='', result_name='', get_url=True, fields=''):
-    assembly = tl.new_assembly({'template_id': templateID, 'fields': fields})
+import os
+from pathlib import Path
 
-    if file_path != '':
-        assembly.add_file(open(file_path, 'rb'))
+from transloadit.client import Transloadit
 
-    assembly_response = assembly.create(retries=5, wait=True)
-    if get_url:
-        assembly_url = assembly_response.data.get('results').get(result_name)[0].get('ssl_url')
-        print(assembly_url)
-        return assembly_url
-    
-useTemplate ('TEMPLATE_ID', file_path='fixtures/document.doc', result_name='speech', get_url=True)
+
+def get_required_env(name):
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Please set {name}.")
+    return value
+
+
+def first_result_url(response_data, step_name):
+    results = (response_data.get("results") or {}).get(step_name) or []
+    if not results:
+        raise RuntimeError(f"No results found for step {step_name!r}: {response_data}")
+    url = results[0].get("ssl_url") or results[0].get("url")
+    if not url:
+        raise RuntimeError(f"No result URL found for step {step_name!r}: {response_data}")
+    return url
+
+
+def main():
+    client = Transloadit(
+        get_required_env("TRANSLOADIT_KEY"),
+        get_required_env("TRANSLOADIT_SECRET"),
+    )
+    template_id = get_required_env("TRANSLOADIT_TTS_TEMPLATE_ID")
+    document_path = Path(__file__).resolve().parent / "fixtures" / "document.doc"
+
+    assembly = client.new_assembly({"template_id": template_id})
+    with document_path.open("rb") as upload:
+        assembly.add_file(upload, "document")
+        response = assembly.create(retries=5, wait=True)
+
+    print("Generated speech:", first_result_url(response.data, "speech"))
+
+
+if __name__ == "__main__":
+    main()

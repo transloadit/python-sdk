@@ -1,5 +1,6 @@
 import unittest
 import urllib.parse
+from unittest import mock
 
 import requests_mock
 
@@ -15,7 +16,10 @@ class TemplateTest(unittest.TestCase):
     @requests_mock.Mocker()
     def test_save(self, mock):
         url = f"{self.transloadit.service}/templates"
-        sub_body = '"robot": "/image/resize"'
+        sub_body = (
+            '"template": {"steps": {"resize": '
+            '{"width": 70, "height": 70, "robot": "/image/resize"}}}'
+        )
         mock.post(
             url,
             text='{"ok":"TEMPLATE_CREATED","template_name":"foo"}',
@@ -26,3 +30,17 @@ class TemplateTest(unittest.TestCase):
         template = self.template.create()
         self.assertEqual(template.data["ok"], "TEMPLATE_CREATED")
         self.assertEqual(template.data["template_name"], "foo")
+
+    def test_create_preserves_string_template_payload(self):
+        template = self.transloadit.new_template(
+            "foo",
+            params={"template": '{"steps":{}}'},
+        )
+
+        with mock.patch.object(self.transloadit.request, "post") as post_mock:
+            template.create()
+
+        post_mock.assert_called_once_with(
+            "/templates",
+            data={"name": "foo", "template": '{"steps":{}}'},
+        )

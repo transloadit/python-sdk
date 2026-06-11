@@ -1,168 +1,135 @@
-### A Transloadit Assembly that adds a translated TTS-voice (english to dutch) to an input video of hermit crabs.
+"""Advanced example: translate speech and merge translated audio into a video.
 
-'''
-Template 1:
+This requires two pre-created Templates in your Transloadit account:
 
-{
-  "steps": {
-    "transcribe_json": {
-      "use": ":original",
-      "robot": "/speech/transcribe",
-      "provider": "aws",
-      "source_language": "${fields.language}",
-      "format": "json",
-      "result": true
-    }
-  }
-}
-'''
+1. A transcription Template that produces a `transcribe_json` result.
+2. A video merge Template that accepts `video`, `target_language`, `source_language`, and
+   `ffmpeg` fields and produces a `merged_video` result.
 
-'''
-Template 2:
+Run from the repository root:
 
-{
-  "steps": {
-    ":original": {
-      "robot": "/upload/handle"
-    },
-    "import_video": {
-      "robot": "/http/import",
-      "url": "${fields.video}"
-    },
-    "translate": {
-      "use": ":original",
-      "robot": "/text/translate",
-      "provider": "gcp",
-      "target_language": "${fields.target_language}",
-      "source_language": "${fields.source_language}",
-      "result": true
-    },
-    "speech": {
-      "use": "translate",
-      "robot": "/text/speak",
-      "provider": "gcp",
-      "target_language": "${fields.target_language}",
-      "voice": "female-1",
-      "ssml": true,
-      "result": true
-    },
-    "extract_audio": {
-      "use": "import_video",
-      "robot": "/video/encode",
-      "result": true,
-      "preset": "mp3",
-      "ffmpeg": {
-        "af": "${fields.ffmpeg}"
-      },
-      "ffmpeg_stack": "v3.3.3"
-    },
-    "merged_audio": {
-      "robot": "/audio/merge",
-      "preset": "mp3",
-      "result": "true",
-      "ffmpeg_stack": "v4.3.1",
-      "use": {
-        "steps": [
-          {
-            "name": "extract_audio",
-            "as": "audio"
-          },
-          {
-            "name": "speech",
-            "as": "audio"
-          }
-        ],
-        "volume": "sum",
-        "bundle_steps": true
-      }
-    },
-    "merged_video": {
-      "robot": "/video/merge",
-      "preset": "hls-720p",
-      "ffmpeg_stack": "v4.3.1",
-      "use": {
-        "steps": [
-          {
-            "name": "merged_audio",
-            "as": "audio"
-          },
-          {
-            "name": "import_video",
-            "as": "video"
-          }
-        ],
-        "bundle_steps": true
-      }
-    }
-  }
-}
-'''
+    TRANSLOADIT_KEY=xxx TRANSLOADIT_SECRET=yyy \
+      TRANSLOADIT_TRANSCRIBE_TEMPLATE_ID=xxx TRANSLOADIT_TRANSLATE_TEMPLATE_ID=yyy \
+      poetry run python examples/video_translator.py
+"""
 
-from transloadit import client
-import urllib.request
 import json
+import os
+import tempfile
+import urllib.request
+from pathlib import Path
 
-tl = client.Transloadit('TRANSLOADIT_KEY', 'TRANSLOADIT_SECRET')
+from transloadit.client import Transloadit
 
-source_language = 'en-GB'
-target_language = 'nl-NL'
 
-def useTemplate(templateID, file_path='', result_name='', get_url=True, fields=''):
-    assembly = tl.new_assembly({'template_id': templateID, 'fields': fields})
+def get_required_env(name):
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Please set {name}.")
+    return value
 
-    if file_path != '':
-        assembly.add_file(open(file_path, 'rb'))
 
-    assembly_response = assembly.create(retries=5, wait=True)
-    if get_url:
-        result_url = assembly_response.data.get('results').get(result_name)[0].get('ssl_url')
-        print(result_url)
-        return result_url
-    else:
-        return assembly_response
-    
-response = useTemplate ('TEMPLATE_1_ID', file_path='medium_crab.mp4', get_url=False, fields={"language":source_language})
-transcription_result_url = response.data.get('results').get('transcribe_json')[0].get('ssl_url')
-video_url = response.data.get('uploads')[0].get('ssl_url')
+def first_result_url(response_data, step_name):
+    results = (response_data.get("results") or {}).get(step_name) or []
+    if not results:
+        raise RuntimeError(f"No results found for step {step_name!r}: {response_data}")
+    url = results[0].get("ssl_url") or results[0].get("url")
+    if not url:
+        raise RuntimeError(f"No result URL found for step {step_name!r}: {response_data}")
+    return url
 
-urllib.request.urlretrieve(transcription_result_url, 'transcribe_json')
 
-with open('transcribe_json') as f:
-    data = json.load(f)
+def create_assembly_with_template(client, template_id, file_path=None, fields=None):
+    assembly = client.new_assembly({"template_id": template_id, "fields": fields or {}})
 
-ffmpeg = "volume=enable:volume=1"
+    if file_path is None:
+        return assembly.create(retries=5, wait=True)
 
-startTimes = []
-endTimes = []
-sentences = []
-currentSentence = ''
+    with Path(file_path).open("rb") as upload:
+        assembly.add_file(upload, Path(file_path).name)
+        return assembly.create(retries=5, wait=True)
 
-startTimes.append(data['words'][0]['startTime'])
 
-for x in range(len(data['words'])):  
-    if (data['words'][x]['text'] == '.') and (x != len(data['words']) - 1):
-        time = data['words'][x+1]['startTime']
-        startTimes.append(time)
-    if (data['words'][x]['text'] != '.'):
-        currentSentence = currentSentence + ' ' + data['words'][x]['text']
-    else:
-        sentences.append(currentSentence + '.')
-        time = data['words'][x-1]['endTime']
-        endTimes.append(time)
-        currentSentence = ''
-        
-print('startTimes: ' + str(startTimes))
-print('endTimes: ' + str(startTimes))
-print(sentences)
+def download_url(url, path, timeout=60):
+    with urllib.request.urlopen(url, timeout=timeout) as response:
+        Path(path).write_bytes(response.read())
 
-f = open("words/text.txt", "w")
-f.write("<speak><par>")
 
-for x in range(len(sentences)):
-    f.write('<media begin="{start}"><speak>{text}</speak></media>'.format(start=startTimes[x], text=sentences[x]))
-    ffmpeg += ", volume=enable='between(t,{start},{end})':volume=0.2".format(start=startTimes[x], end=endTimes[x])
+def build_ssml_and_ffmpeg(words):
+    if not words:
+        raise RuntimeError("Transcription result did not contain any words.")
 
-f.write("</par></speak>")
-f.close()
+    sentences = []
+    start_times = []
+    end_times = []
+    current_sentence = []
 
-final_result_url = useTemplate ('TEMPLATE_2_ID', file_path='words/text.txt', result_name='merged_video', get_url=True, fields={"target_language":target_language, "source_language":source_language, "video":video_url, "ffmpeg":ffmpeg})
+    start_times.append(words[0]["startTime"])
+    for index, word in enumerate(words):
+        if word["text"] == "." and index != len(words) - 1:
+            start_times.append(words[index + 1]["startTime"])
+        if word["text"] != ".":
+            current_sentence.append(word["text"])
+            continue
+        sentences.append(" ".join(current_sentence) + ".")
+        end_times.append(words[index - 1]["endTime"])
+        current_sentence = []
+
+    ffmpeg = "volume=enable:volume=1"
+    ssml_parts = ["<speak><par>"]
+    for index, sentence in enumerate(sentences):
+        ssml_parts.append(f'<media begin="{start_times[index]}"><speak>{sentence}</speak></media>')
+        ffmpeg += (
+            f", volume=enable='between(t,{start_times[index]},{end_times[index]})':volume=0.2"
+        )
+    ssml_parts.append("</par></speak>")
+    return "".join(ssml_parts), ffmpeg
+
+
+def main():
+    client = Transloadit(
+        get_required_env("TRANSLOADIT_KEY"),
+        get_required_env("TRANSLOADIT_SECRET"),
+    )
+    transcribe_template_id = get_required_env("TRANSLOADIT_TRANSCRIBE_TEMPLATE_ID")
+    translate_template_id = get_required_env("TRANSLOADIT_TRANSLATE_TEMPLATE_ID")
+    source_language = os.getenv("TRANSLOADIT_SOURCE_LANGUAGE", "en-GB")
+    target_language = os.getenv("TRANSLOADIT_TARGET_LANGUAGE", "nl-NL")
+    example_dir = Path(__file__).resolve().parent
+
+    transcribe_response = create_assembly_with_template(
+        client,
+        transcribe_template_id,
+        file_path=example_dir / "fixtures" / "crab.mp4",
+        fields={"language": source_language},
+    )
+    transcription_url = first_result_url(transcribe_response.data, "transcribe_json")
+    video_url = transcribe_response.data["uploads"][0]["ssl_url"]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+        transcript_path = tmpdir_path / "transcribe_json.json"
+        download_url(transcription_url, transcript_path)
+        with transcript_path.open() as transcript:
+            transcript_data = json.load(transcript)
+
+        ssml, ffmpeg = build_ssml_and_ffmpeg(transcript_data["words"])
+        text_path = tmpdir_path / "text.txt"
+        text_path.write_text(ssml)
+
+        translated_response = create_assembly_with_template(
+            client,
+            translate_template_id,
+            file_path=text_path,
+            fields={
+                "target_language": target_language,
+                "source_language": source_language,
+                "video": video_url,
+                "ffmpeg": ffmpeg,
+            },
+        )
+    print("Translated video:", first_result_url(translated_response.data, "merged_video"))
+
+
+if __name__ == "__main__":
+    main()
