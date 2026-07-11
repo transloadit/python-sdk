@@ -107,6 +107,13 @@ class ClientTest(unittest.TestCase):
             },
         )
 
+    def test_issue_bearer_token_rejects_127_prefixed_domain(self):
+        client = Transloadit("key", "secret", service="http://127.attacker.com")
+        with mock.patch("transloadit.client.requests.post") as post_mock:
+            with self.assertRaisesRegex(ValueError, "insecure bearer token endpoint"):
+                client.issue_bearer_token()
+            post_mock.assert_not_called()
+
     def test_wait_for_assembly_polls_until_terminal(self):
         responses = [
             Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200),

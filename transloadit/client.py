@@ -147,22 +147,6 @@ class Transloadit:
         """
         return self.request.post("/templates", data=data)
 
-    def get_template(self, template_id: str, params: Optional[dict] = None):
-        """
-        Retrieve a Template.
-        """
-        template_id = require_path_id(template_id, "template_id")
-
-        return self.request.get(f"/templates/{_quote_path_segment(template_id)}", params=params)
-
-    def get_builtin_template(self, builtin_template_slug: str, params: Optional[dict] = None):
-        """
-        Retrieve a built-in Template.
-        """
-        builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
-
-        return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}", params=params)
-
     def get_template_full(self, template_id_or_name: str, params: Optional[dict] = None):
         """
         Retrieve full Template details.
@@ -178,6 +162,22 @@ class Transloadit:
         builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
 
         return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}/full", params=params)
+
+    def get_template(self, template_id: str, params: Optional[dict] = None):
+        """
+        Retrieve a Template.
+        """
+        template_id = require_path_id(template_id, "template_id")
+
+        return self.request.get(f"/templates/{_quote_path_segment(template_id)}", params=params)
+
+    def get_builtin_template(self, builtin_template_slug: str, params: Optional[dict] = None):
+        """
+        Retrieve a built-in Template.
+        """
+        builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
+
+        return self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}", params=params)
 
     def update_template(self, template_id: str, data: Optional[dict] = None):
         """
@@ -208,13 +208,16 @@ class Transloadit:
         if not self.auth_secret:
             raise ValueError("Bearer token issuance requires an auth secret.")
 
+        from ipaddress import ip_address
         from urllib.parse import urlparse
 
         endpoint = urlparse(self.service)
-        loopback = (
-            endpoint.hostname in ("localhost", "::1")
-            or (endpoint.hostname or "").startswith("127.")
-        )
+        try:
+            loopback = endpoint.hostname == "localhost" or ip_address(
+                endpoint.hostname or ""
+            ).is_loopback
+        except ValueError:
+            loopback = False
         if (
             endpoint.username is not None
             or endpoint.password is not None
@@ -240,7 +243,7 @@ class Transloadit:
         }
         headers.update(self.request.HEADERS)
         raw_response = requests.post(
-            self.service + "/token",
+            self.service.rstrip("/") + "/token",
             data=form_data,
             headers=headers,
             timeout=request.TIMEOUT,

@@ -303,6 +303,19 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["headers"]["Authorization"], "Basic a2V5OnNlY3JldA==")
         self.assertFalse(kwargs["allow_redirects"])
 
+    async def test_issue_bearer_token_rejects_127_prefixed_domain(self):
+        session = _RecordingSession({})
+        client = AsyncTransloadit(
+            "key",
+            "secret",
+            service="http://127.attacker.com",
+            session=session,
+        )
+
+        with self.assertRaisesRegex(ValueError, "insecure bearer token endpoint"):
+            await client.issue_bearer_token()
+        self.assertEqual(session.calls, [])
+
     async def test_async_client_methods_and_context_manager(self):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             response = await client.get_assembly(assembly_id="abc123")
