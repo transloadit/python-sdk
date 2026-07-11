@@ -201,6 +201,55 @@ class Transloadit:
         """
         return self.request.get("/queues/job_slots", params=params)
 
+    def issue_bearer_token(self, data: Optional[dict] = None):
+        """
+        Create a bearer token.
+        """
+        if not self.auth_secret:
+            raise ValueError("Bearer token issuance requires an auth secret.")
+
+        from urllib.parse import urlparse
+
+        endpoint = urlparse(self.service)
+        loopback = (
+            endpoint.hostname in ("localhost", "::1")
+            or (endpoint.hostname or "").startswith("127.")
+        )
+        if (
+            endpoint.username is not None
+            or endpoint.password is not None
+            or not (endpoint.scheme == "https" or (endpoint.scheme == "http" and loopback))
+        ):
+            raise ValueError("Refusing to send credentials to an insecure bearer token endpoint.")
+
+        data = data or {}
+        form_data = {}
+        if data.get("aud") is not None:
+            form_data["aud"] = data["aud"]
+        form_data["grant_type"] = "client_credentials"
+        if data.get("scope") is not None:
+            form_data["scope"] = data["scope"]
+
+        credentials = base64.b64encode(
+            f"{self.auth_key}:{self.auth_secret}".encode("utf-8")
+        ).decode("ascii")
+        headers = {
+            "Accept": "application/json",
+            "Authorization": f"Basic {credentials}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        headers.update(self.request.HEADERS)
+        raw_response = requests.post(
+            self.service + "/token",
+            data=form_data,
+            headers=headers,
+            timeout=request.TIMEOUT,
+            allow_redirects=False,
+        )
+        from .response import Response
+
+        return Response(raw_response)
+
     def list_template_credentials(self, params: Optional[dict] = None):
         """
         Retrieve list of Template Credentials.

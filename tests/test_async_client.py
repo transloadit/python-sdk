@@ -282,6 +282,27 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await self.server.close()
 
+    async def test_issue_bearer_token_uses_basic_auth_and_form_encoding(self):
+        session = _RecordingSession({
+            "access_token": "abc",
+            "expires_in": 21600,
+            "scope": "assemblies:read",
+            "token_type": "Bearer",
+        })
+        client = AsyncTransloadit("key", "secret", service=self.server.base_url, session=session)
+
+        response = await client.issue_bearer_token({"scope": "assemblies:read"})
+
+        self.assertEqual(response.data["access_token"], "abc")
+        url, kwargs = session.calls[0]
+        self.assertEqual(url, f"{self.server.base_url}/token")
+        self.assertEqual(
+            kwargs["data"],
+            {"grant_type": "client_credentials", "scope": "assemblies:read"},
+        )
+        self.assertEqual(kwargs["headers"]["Authorization"], "Basic a2V5OnNlY3JldA==")
+        self.assertFalse(kwargs["allow_redirects"])
+
     async def test_async_client_methods_and_context_manager(self):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             response = await client.get_assembly(assembly_id="abc123")

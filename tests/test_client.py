@@ -78,6 +78,35 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
         self.assertEqual(response.data["assembly_id"], "abcdef12345")
 
+    @requests_mock.Mocker()
+    def test_issue_bearer_token_uses_basic_auth_and_form_encoding(self, requests_mock):
+        requests_mock.post(
+            f"{self.transloadit.service}/token",
+            json={
+                "access_token": "abc",
+                "expires_in": 21600,
+                "scope": "assemblies:read",
+                "token_type": "Bearer",
+            },
+        )
+
+        response = self.transloadit.issue_bearer_token({"scope": "assemblies:read"})
+
+        self.assertEqual(response.data["access_token"], "abc")
+        request = requests_mock.request_history[0]
+        self.assertEqual(request.headers["Authorization"], "Basic a2V5OnNlY3JldA==")
+        self.assertEqual(
+            request.headers["Content-Type"],
+            "application/x-www-form-urlencoded",
+        )
+        self.assertEqual(
+            urllib.parse.parse_qs(request.text),
+            {
+                "grant_type": ["client_credentials"],
+                "scope": ["assemblies:read"],
+            },
+        )
+
     def test_wait_for_assembly_polls_until_terminal(self):
         responses = [
             Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200),

@@ -191,6 +191,60 @@ class AsyncTransloadit:
         """
         return await self.request.get("/queues/job_slots", params=params)
 
+    async def issue_bearer_token(self, data: Optional[dict] = None):
+        """
+        Create a bearer token.
+        """
+        if not self.auth_secret:
+            raise ValueError("Bearer token issuance requires an auth secret.")
+
+        from urllib.parse import urlparse
+
+        endpoint = urlparse(self.service)
+        loopback = (
+            endpoint.hostname in ("localhost", "::1")
+            or (endpoint.hostname or "").startswith("127.")
+        )
+        if (
+            endpoint.username is not None
+            or endpoint.password is not None
+            or not (endpoint.scheme == "https" or (endpoint.scheme == "http" and loopback))
+        ):
+            raise ValueError("Refusing to send credentials to an insecure bearer token endpoint.")
+
+        data = data or {}
+        form_data = {}
+        if data.get("aud") is not None:
+            form_data["aud"] = data["aud"]
+        form_data["grant_type"] = "client_credentials"
+        if data.get("scope") is not None:
+            form_data["scope"] = data["scope"]
+
+        credentials = base64.b64encode(
+            f"{self.auth_key}:{self.auth_secret}".encode("utf-8")
+        ).decode("ascii")
+        headers = {
+            "Accept": "application/json",
+            "Authorization": f"Basic {credentials}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        headers.update(self.request._headers())
+        session = await self.request._ensure_session()
+        async with session.post(
+            self.service + "/token",
+            data=form_data,
+            headers=headers,
+            timeout=self.request._timeout(),
+            allow_redirects=False,
+        ) as raw_response:
+            from .response import Response
+
+            return Response(
+                data=await self.request._read_response_data(raw_response),
+                status_code=raw_response.status,
+                headers=raw_response.headers,
+            )
+
     async def list_template_credentials(self, params: Optional[dict] = None):
         """
         Retrieve list of Template Credentials.
