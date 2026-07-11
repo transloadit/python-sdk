@@ -135,6 +135,15 @@ class Transloadit:
         """
         return self.request.get(f"/bill/{year}-{month:02d}", params=params)
 
+    def get_bill_for_invoice(self, date: str, invoice_id: str, params: Optional[dict] = None):
+        """
+        Retrieve an invoice’s bill.
+        """
+        date = require_path_id(date, "date")
+        invoice_id = require_path_id(invoice_id, "invoice_id")
+
+        return self.request.get(f"/bill/{_quote_path_segment(date)}/{_quote_path_segment(invoice_id)}", params=params)
+
     def list_templates(self, params: Optional[dict] = None):
         """
         Retrieve list of Templates.
