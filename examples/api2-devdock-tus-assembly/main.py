@@ -113,7 +113,6 @@ def main():
     input_values = upload_tus_assembly_input(example_input_values)
     upload = upload_config(input_values)
     completed_assembly, upload_url = client.upload_tus_assembly(
-        input_values["file_count"],
         upload["content"],
         upload["fieldname"],
         upload["filename"],

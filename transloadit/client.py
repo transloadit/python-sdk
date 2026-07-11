@@ -390,11 +390,11 @@ class Transloadit:
 
         return completed_assembly
 
-    def upload_tus_assembly(self, file_count: int, content: bytes, fieldname: str, filename: str, user_meta: Optional[dict] = None):
+    def upload_tus_assembly(self, content: bytes, fieldname: str, filename: str, user_meta: Optional[dict] = None):
         """
         Creates a TUS-ready Assembly, uploads one file with the TUS protocol, and waits for the Assembly to finish.
         """
-        created_assembly = self.create_tus_assembly(file_count)
+        created_assembly = self.create_tus_assembly(1)
 
         endpoint_url = created_assembly.data.get("tus_url")
         if not endpoint_url:
