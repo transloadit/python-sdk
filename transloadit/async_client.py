@@ -63,7 +63,7 @@ class AsyncTransloadit:
 
     async def create_assembly_with_id(self, assembly_id: str, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
         """
-        Create Assembly With Id.
+        Create an Assembly with a chosen ID.
         """
         assembly_id = require_path_id(assembly_id, "assembly_id")
 
@@ -113,7 +113,7 @@ class AsyncTransloadit:
 
     async def list_assembly_notifications(self, assembly_id: str):
         """
-        List Assembly Notifications.
+        Retrieve Assembly Notifications.
         """
         assembly_id = require_path_id(assembly_id, "assembly_id")
 
@@ -147,7 +147,7 @@ class AsyncTransloadit:
 
     async def get_builtin_template(self, builtin_template_slug: str, params: Optional[dict] = None):
         """
-        Get Builtin Template.
+        Retrieve a built-in Template.
         """
         builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
 
@@ -155,7 +155,7 @@ class AsyncTransloadit:
 
     async def get_template_full(self, template_id_or_name: str, params: Optional[dict] = None):
         """
-        Get Template Full.
+        Retrieve full Template details.
         """
         template_id_or_name = require_path_id(template_id_or_name, "template_id_or_name")
 
@@ -163,7 +163,7 @@ class AsyncTransloadit:
 
     async def get_builtin_template_full(self, builtin_template_slug: str, params: Optional[dict] = None):
         """
-        Get Builtin Template Full.
+        Retrieve full built-in Template details.
         """
         builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
 
@@ -199,13 +199,13 @@ class AsyncTransloadit:
 
     async def list_template_credential_types(self, params: Optional[dict] = None):
         """
-        List Template Credential Types.
+        Retrieve Template Credential types.
         """
         return await self.request.get("/template_credentials/types", params=params)
 
     async def validate_template_credential_oauth_on_create(self, data: Optional[dict] = None):
         """
-        Validate Template Credential OAuth On Create.
+        Validate an OAuth Template Credential name.
         """
         return await self.request.post("/template_credentials/validateOauthOnCreate", data=data)
 
