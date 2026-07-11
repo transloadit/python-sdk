@@ -250,6 +250,10 @@ class _RecordingSession:
         self.calls.append((url, kwargs))
         return _FakeResponseContext(self.payload)
 
+    def request(self, method, url, **kwargs):
+        self.calls.append((url, kwargs))
+        return _FakeResponseContext(self.payload)
+
     async def close(self):
         self.closed = True
 
@@ -410,17 +414,10 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             service="https://api2.transloadit.com",
             session=external_session,
         )
-        await external_client.get_assembly(assembly_url="https://example.com/assemblies/abc123")
-        await external_client.cancel_assembly(assembly_url="https://example.com/assemblies/abc123")
-        self.assertEqual(
-            [call[0] for call in external_session.calls],
-            [
-                "https://example.com/assemblies/abc123",
-                "https://example.com/assemblies/abc123",
-            ],
-        )
-        self.assertIsNone(external_session.calls[0][1]["params"])
-        self.assertEqual(external_session.calls[1][1]["data"], [])
+        for method in (external_client.get_assembly, external_client.cancel_assembly):
+            with self.assertRaisesRegex(ValueError, "untrusted Assembly URL"):
+                await method(assembly_url="https://example.com/assemblies/abc123")
+        self.assertEqual(external_session.calls, [])
 
         transloadit_session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
         transloadit_client = AsyncTransloadit(
@@ -430,13 +427,17 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             session=transloadit_session,
         )
         await transloadit_client.get_assembly(
-            assembly_url="https://api2-region.transloadit.com/assemblies/abc123"
+            assembly_url="https://api2-region.transloadit.com/assemblies/abc123",
+            params={"nonce": 123},
         )
         self.assertEqual(
             transloadit_session.calls[0][0],
             "https://api2-region.transloadit.com/assemblies/abc123",
         )
-        self.assertIn("signature", transloadit_session.calls[0][1]["params"])
+        request_kwargs = transloadit_session.calls[0][1]
+        self.assertEqual(request_kwargs["params"], {"nonce": 123})
+        self.assertNotIn("Authorization", request_kwargs["headers"])
+        self.assertFalse(request_kwargs["allow_redirects"])
 
         await client.close()
 

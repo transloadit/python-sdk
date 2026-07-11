@@ -55,6 +55,62 @@ class AsyncTransloadit:
     # please report the issue instead of editing this block by hand; the source fix
     # belongs in the contract generator so all SDKs stay in sync.
 
+    async def _request_assembly_url(self, url, method, params=None):
+        from urllib.parse import urlparse
+
+        if "://" in url and not url.startswith(("http://", "https://")):
+            raise ValueError("Invalid Assembly URL.")
+        candidate_url = (
+            url
+            if url.startswith(("http://", "https://"))
+            else self.service.rstrip("/") + "/" + url.lstrip("/")
+        )
+        try:
+            candidate = urlparse(candidate_url)
+            configured = urlparse(self.service)
+            candidate_port = candidate.port or (443 if candidate.scheme == "https" else 80)
+            configured_port = configured.port or (443 if configured.scheme == "https" else 80)
+        except ValueError as error:
+            raise ValueError("Invalid Assembly URL.") from error
+
+        candidate_hostname = (candidate.hostname or "").lower()
+        configured_hostname = (configured.hostname or "").lower()
+        has_url_credentials = candidate.username is not None or candidate.password is not None
+        configured_origin = (
+            not has_url_credentials
+            and candidate.scheme == configured.scheme
+            and candidate_hostname == configured_hostname
+            and candidate_port == configured_port
+        )
+        api2_cell = (
+            not has_url_credentials
+            and candidate.scheme == "https"
+            and candidate_port == 443
+            and candidate_hostname.startswith("api2-")
+            and candidate_hostname.endswith(".transloadit.com")
+        )
+        if not (configured_origin or api2_cell):
+            raise ValueError("Refusing to request an untrusted Assembly URL.")
+        if method not in {"GET", "DELETE"}:
+            raise ValueError(f"Unsupported Assembly URL method: {method}")
+
+        session = await self.request._ensure_session()
+        async with session.request(
+            method,
+            candidate_url,
+            params=params,
+            headers=self.request._headers(),
+            timeout=self.request._timeout(),
+            allow_redirects=False,
+        ) as raw_response:
+            from .response import Response
+
+            return Response(
+                data=await self.request._read_response_data(raw_response),
+                status_code=raw_response.status,
+                headers=raw_response.headers,
+            )
+
     async def create_assembly(self, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
         """
         Create a new Assembly.
@@ -83,7 +139,7 @@ class AsyncTransloadit:
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
         url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
-        return await self.request.get(url, params=params)
+        return await self._request_assembly_url(url, "GET", params=params)
 
     async def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
@@ -93,7 +149,7 @@ class AsyncTransloadit:
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
         url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
-        return await self.request.delete(url)
+        return await self._request_assembly_url(url, "DELETE")
 
     async def replay_assembly(self, assembly_id: str, data: Optional[dict] = None):
         """
