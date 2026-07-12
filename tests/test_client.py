@@ -211,8 +211,8 @@ class ClientTest(unittest.TestCase):
             [mock.call('/assemblies/assembly%2Fwith%3Fchars', 'GET', params=None)],
         )
 
-    def test_rejects_empty_template_ids(self):
-        invalid_ids = ("", None)
+    def test_rejects_invalid_template_ids(self):
+        invalid_ids = ("", None, ".", "..")
         with mock.patch.object(self.transloadit.request, "get"):
             for template_id in invalid_ids:
                 with self.assertRaises(ValueError):

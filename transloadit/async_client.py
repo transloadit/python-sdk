@@ -8,10 +8,6 @@ from .api_url import normalize_service_url, require_path_id
 from .smart_cdn import URL_PARAM_VALUES, build_signed_smart_cdn_url
 
 
-def _quote_path_segment(value: str) -> str:
-    return quote(str(value), safe="")
-
-
 class AsyncTransloadit:
     """
     Asynchronous client interface to the Transloadit API.
@@ -54,6 +50,13 @@ class AsyncTransloadit:
     # This block is generated from Transloadit API2 contracts. If it looks wrong,
     # please report the issue instead of editing this block by hand; the source fix
     # belongs in the contract generator so all SDKs stay in sync.
+
+    def _quote_path_segment(self, value: str) -> str:
+        value = str(value)
+        if value in (".", ".."):
+            raise ValueError("Path parameters cannot be dot segments.")
+
+        return quote(value, safe="")
 
     async def _request_assembly_url(self, url, method, params=None):
         from urllib.parse import urlparse
@@ -130,7 +133,7 @@ class AsyncTransloadit:
         """
         assembly_id = require_path_id(assembly_id, "assembly_id")
 
-        return await self.request.post(f"/assemblies/{_quote_path_segment(assembly_id)}", data=data, extra_data=extra_data, files=files)
+        return await self.request.post(f"/assemblies/{self._quote_path_segment(assembly_id)}", data=data, extra_data=extra_data, files=files)
 
     async def list_assemblies(self, params: Optional[dict] = None):
         """
@@ -145,7 +148,7 @@ class AsyncTransloadit:
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
+        url = assembly_url if assembly_url else f"/assemblies/{self._quote_path_segment(assembly_id)}"
         return await self._request_assembly_url(url, "GET", params=params)
 
     async def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None):
@@ -155,7 +158,7 @@ class AsyncTransloadit:
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else f"/assemblies/{_quote_path_segment(assembly_id)}"
+        url = assembly_url if assembly_url else f"/assemblies/{self._quote_path_segment(assembly_id)}"
         return await self._request_assembly_url(url, "DELETE")
 
     async def replay_assembly(self, assembly_id: str, data: Optional[dict] = None):
@@ -164,7 +167,7 @@ class AsyncTransloadit:
         """
         assembly_id = require_path_id(assembly_id, "assembly_id")
 
-        return await self.request.post(f"/assemblies/{_quote_path_segment(assembly_id)}/replay", data=data)
+        return await self.request.post(f"/assemblies/{self._quote_path_segment(assembly_id)}/replay", data=data)
 
     async def replay_assembly_notification(self, assembly_id: str, data: Optional[dict] = None):
         """
@@ -172,7 +175,7 @@ class AsyncTransloadit:
         """
         assembly_id = require_path_id(assembly_id, "assembly_id")
 
-        return await self.request.post(f"/assembly_notifications/{_quote_path_segment(assembly_id)}/replay", data=data)
+        return await self.request.post(f"/assembly_notifications/{self._quote_path_segment(assembly_id)}/replay", data=data)
 
     async def list_assembly_notifications(self, assembly_id: str):
         """
@@ -180,7 +183,7 @@ class AsyncTransloadit:
         """
         assembly_id = require_path_id(assembly_id, "assembly_id")
 
-        return await self.request.get(f"/assembly_notifications/{_quote_path_segment(assembly_id)}")
+        return await self.request.get(f"/assembly_notifications/{self._quote_path_segment(assembly_id)}")
 
     async def get_bill(self, month: int, year: int, params: Optional[dict] = None):
         """
@@ -195,7 +198,7 @@ class AsyncTransloadit:
         date = require_path_id(date, "date")
         invoice_id = require_path_id(invoice_id, "invoice_id")
 
-        return await self.request.get(f"/bill/{_quote_path_segment(date)}/{_quote_path_segment(invoice_id)}", params=params)
+        return await self.request.get(f"/bill/{self._quote_path_segment(date)}/{self._quote_path_segment(invoice_id)}", params=params)
 
     async def list_templates(self, params: Optional[dict] = None):
         """
@@ -215,7 +218,7 @@ class AsyncTransloadit:
         """
         template_id_or_name = require_path_id(template_id_or_name, "template_id_or_name")
 
-        return await self.request.get(f"/templates/{_quote_path_segment(template_id_or_name)}/full", params=params)
+        return await self.request.get(f"/templates/{self._quote_path_segment(template_id_or_name)}/full", params=params)
 
     async def get_builtin_template_full(self, builtin_template_slug: str, params: Optional[dict] = None):
         """
@@ -223,7 +226,7 @@ class AsyncTransloadit:
         """
         builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
 
-        return await self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}/full", params=params)
+        return await self.request.get(f"/templates/builtin/{self._quote_path_segment(builtin_template_slug)}/full", params=params)
 
     async def get_template(self, template_id: str, params: Optional[dict] = None):
         """
@@ -231,7 +234,7 @@ class AsyncTransloadit:
         """
         template_id = require_path_id(template_id, "template_id")
 
-        return await self.request.get(f"/templates/{_quote_path_segment(template_id)}", params=params)
+        return await self.request.get(f"/templates/{self._quote_path_segment(template_id)}", params=params)
 
     async def get_builtin_template(self, builtin_template_slug: str, params: Optional[dict] = None):
         """
@@ -239,7 +242,7 @@ class AsyncTransloadit:
         """
         builtin_template_slug = require_path_id(builtin_template_slug, "builtin_template_slug")
 
-        return await self.request.get(f"/templates/builtin/{_quote_path_segment(builtin_template_slug)}", params=params)
+        return await self.request.get(f"/templates/builtin/{self._quote_path_segment(builtin_template_slug)}", params=params)
 
     async def update_template(self, template_id: str, data: Optional[dict] = None):
         """
@@ -247,7 +250,7 @@ class AsyncTransloadit:
         """
         template_id = require_path_id(template_id, "template_id")
 
-        return await self.request.put(f"/templates/{_quote_path_segment(template_id)}", data=data)
+        return await self.request.put(f"/templates/{self._quote_path_segment(template_id)}", data=data)
 
     async def delete_template(self, template_id: str, data: Optional[dict] = None):
         """
@@ -255,7 +258,7 @@ class AsyncTransloadit:
         """
         template_id = require_path_id(template_id, "template_id")
 
-        return await self.request.delete(f"/templates/{_quote_path_segment(template_id)}", data=data)
+        return await self.request.delete(f"/templates/{self._quote_path_segment(template_id)}", data=data)
 
     async def list_priority_job_slots(self, params: Optional[dict] = None):
         """
@@ -350,7 +353,7 @@ class AsyncTransloadit:
         """
         identifier = require_path_id(identifier, "identifier")
 
-        return await self.request.get(f"/template_credentials/{_quote_path_segment(identifier)}", params=params)
+        return await self.request.get(f"/template_credentials/{self._quote_path_segment(identifier)}", params=params)
 
     async def delete_template_credentials(self, identifier: str, data: Optional[dict] = None):
         """
@@ -358,7 +361,7 @@ class AsyncTransloadit:
         """
         identifier = require_path_id(identifier, "identifier")
 
-        return await self.request.delete(f"/template_credentials/{_quote_path_segment(identifier)}", data=data)
+        return await self.request.delete(f"/template_credentials/{self._quote_path_segment(identifier)}", data=data)
 
     async def update_template_credentials(self, identifier: str, data: Optional[dict] = None):
         """
@@ -366,7 +369,7 @@ class AsyncTransloadit:
         """
         identifier = require_path_id(identifier, "identifier")
 
-        return await self.request.put(f"/template_credentials/{_quote_path_segment(identifier)}", data=data)
+        return await self.request.put(f"/template_credentials/{self._quote_path_segment(identifier)}", data=data)
 
     # </api2-generated-endpoints>
 

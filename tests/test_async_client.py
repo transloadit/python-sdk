@@ -478,11 +478,11 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_async_client_rejects_empty_template_ids(self):
+    async def test_async_client_rejects_invalid_template_ids(self):
         session = _RecordingSession({"ok": "TEMPLATE_FOUND"})
         client = AsyncTransloadit("key", "secret", service=self.server.base_url, session=session)
 
-        for template_id in ("", None):
+        for template_id in ("", None, ".", ".."):
             with self.assertRaises(ValueError):
                 await client.get_template(template_id)
             with self.assertRaises(ValueError):
