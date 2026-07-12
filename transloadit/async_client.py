@@ -82,6 +82,13 @@ class AsyncTransloadit:
             and candidate_hostname == configured_hostname
             and candidate_port == configured_port
         )
+        configured_https_host = (
+            not has_url_credentials
+            and candidate.scheme == "https"
+            and candidate_port == 443
+            and candidate_hostname != ""
+            and candidate_hostname == configured_hostname
+        )
         api2_cell = (
             not has_url_credentials
             and candidate.scheme == "https"
@@ -89,7 +96,7 @@ class AsyncTransloadit:
             and candidate_hostname.startswith("api2-")
             and candidate_hostname.endswith(".transloadit.com")
         )
-        if not (configured_origin or api2_cell):
+        if not (configured_origin or configured_https_host or api2_cell):
             raise ValueError("Refusing to request an untrusted Assembly URL.")
         if method not in {"GET", "DELETE"}:
             raise ValueError(f"Unsupported Assembly URL method: {method}")
