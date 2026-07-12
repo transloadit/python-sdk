@@ -1,8 +1,8 @@
-"""Upload an image and resize it.
+"""Upload an image with resumable TUS upload enabled.
 
 Run from the repository root:
 
-    TRANSLOADIT_KEY=xxx TRANSLOADIT_SECRET=yyy poetry run python examples/image_resize.py
+    TRANSLOADIT_KEY=xxx TRANSLOADIT_SECRET=yyy poetry run python examples/resumable_upload.py
 """
 
 import os
@@ -36,7 +36,7 @@ def first_result_url(response_data, step_name):
 def main():
     key, secret = get_credentials()
     client = Transloadit(key, secret)
-    assembly = client.new_assembly()
+    assembly = client.new_assembly({"fields": {"example": "python-sdk-resumable-upload"}})
 
     with get_example_image_path().open("rb") as upload:
         assembly.add_file(upload, "image")
@@ -51,10 +51,10 @@ def main():
                 "format": "png",
             },
         )
-        response = assembly.create(wait=True, resumable=False)
+        response = assembly.create(wait=True, resumable=True)
 
     print("Assembly:", response.data.get("assembly_ssl_url") or response.data.get("assembly_url"))
-    print("Resized image:", first_result_url(response.data, "resize"))
+    print("Resumable upload result:", first_result_url(response.data, "resize"))
 
 
 if __name__ == "__main__":

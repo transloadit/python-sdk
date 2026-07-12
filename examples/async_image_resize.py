@@ -1,14 +1,15 @@
-"""Upload an image and resize it.
+"""Upload and resize an image with the async client.
 
 Run from the repository root:
 
-    TRANSLOADIT_KEY=xxx TRANSLOADIT_SECRET=yyy poetry run python examples/image_resize.py
+    TRANSLOADIT_KEY=xxx TRANSLOADIT_SECRET=yyy poetry run python examples/async_image_resize.py
 """
 
+import asyncio
 import os
 from pathlib import Path
 
-from transloadit.client import Transloadit
+from transloadit.async_client import AsyncTransloadit
 
 
 def get_credentials():
@@ -33,29 +34,29 @@ def first_result_url(response_data, step_name):
     return url
 
 
-def main():
+async def main():
     key, secret = get_credentials()
-    client = Transloadit(key, secret)
-    assembly = client.new_assembly()
 
-    with get_example_image_path().open("rb") as upload:
-        assembly.add_file(upload, "image")
-        assembly.add_step(
-            "resize",
-            "/image/resize",
-            {
-                "use": ":original",
-                "width": 120,
-                "height": 120,
-                "resize_strategy": "fit",
-                "format": "png",
-            },
-        )
-        response = assembly.create(wait=True, resumable=False)
+    async with AsyncTransloadit(key, secret) as client:
+        assembly = client.new_assembly()
+        with get_example_image_path().open("rb") as upload:
+            assembly.add_file(upload, "image")
+            assembly.add_step(
+                "resize",
+                "/image/resize",
+                {
+                    "use": ":original",
+                    "width": 120,
+                    "height": 120,
+                    "resize_strategy": "fit",
+                    "format": "png",
+                },
+            )
+            response = await assembly.create(wait=True, resumable=False)
 
     print("Assembly:", response.data.get("assembly_ssl_url") or response.data.get("assembly_url"))
     print("Resized image:", first_result_url(response.data, "resize"))
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

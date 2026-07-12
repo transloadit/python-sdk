@@ -60,7 +60,7 @@ jobs:
       - name: Upload coverage reports
         # Only upload coverage if we have a token (skip for Dependabot PRs)
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14' && (github.event_name != 'pull_request' || github.actor != 'dependabot[bot]')
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
@@ -71,7 +71,7 @@ jobs:
       - name: Upload coverage reports (tokenless)
         # Use tokenless upload for Dependabot PRs
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14' && github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
         with:
           files: ./coverage.xml
           flags: unittests
@@ -127,8 +127,8 @@ jobs:
             exit 1
           fi
 
-      - name: Run E2E upload test
+      - name: Run E2E tests and examples
         env:
           TEST_NODE_PARITY: 0
         run: |
-          poetry run pytest tests/test_e2e_upload.py -q --maxfail=1 --no-cov
+          poetry run pytest tests/test_e2e_upload.py tests/test_examples.py -q --maxfail=1 --no-cov

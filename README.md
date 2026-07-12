@@ -36,9 +36,33 @@ print(assembly_response.data.get('assembly_id'))
 print(assembly_response.data['assembly_id'])
 ```
 
-## Example
+## Async usage
 
-For fully working examples, take a look at [`examples/`](https://github.com/transloadit/python-sdk/tree/HEAD/examples).
+```python
+from transloadit.async_client import AsyncTransloadit
+
+async with AsyncTransloadit("TRANSLOADIT_KEY", "TRANSLOADIT_SECRET") as tl:
+    response = await tl.get_assembly(assembly_id="abc")
+    print(response.data["ok"])
+
+    assembly = tl.new_assembly()
+    assembly.add_step("resize", "/image/resize", {"width": 70, "height": 70})
+    with open("PATH/TO/FILE.jpg", "rb") as upload:
+        assembly.add_file(upload)
+        response = await assembly.create(wait=True, resumable=False)
+```
+
+The async client keeps polling on `asyncio.sleep`. Resumable uploads still use the existing TUS client, but are offloaded with `asyncio.to_thread()` so the event loop stays responsive.
+
+If you do not use `async with`, call `await tl.aclose()` when you are done with the session.
+
+## Examples
+
+For copy/paste runnable examples, take a look at
+[`examples/`](https://github.com/transloadit/python-sdk/tree/HEAD/examples).
+
+The examples cover sync uploads, async uploads, resumable uploads, Template usage,
+sync and async Template lifecycle management, and Smart CDN URL signing.
 
 ## Documentation
 
@@ -60,17 +84,17 @@ This script will:
 - install Poetry, Node.js 24, and the Transloadit CLI
 - pass credentials from `.env` (if present) so end-to-end tests can run against real Transloadit accounts
 
-Signature parity tests use `npx transloadit smart_sig` under the hood, matching the reference implementation used by our other SDKs. Our GitHub Actions workflow also runs the E2E upload against Python 3.14 on every push/PR using a dedicated Transloadit test account (wired through the `TRANSLOADIT_KEY` and `TRANSLOADIT_SECRET` secrets).
+Signature parity tests use `npx transloadit smart_sig` under the hood, matching the reference implementation used by our other SDKs. Our GitHub Actions workflow also runs the E2E upload and quickstart examples against Python 3.14 on every push/PR using a dedicated Transloadit test account (wired through the `TRANSLOADIT_KEY` and `TRANSLOADIT_SECRET` secrets).
 
 Pass `--python 3.14` (or set `PYTHON_VERSIONS`) to restrict the matrix, or append a custom command after `--`, for example `scripts/test-in-docker.sh -- pytest -k smartcdn`.
 
 To exercise the optional end-to-end upload against a real Transloadit account, provide `TRANSLOADIT_KEY` and `TRANSLOADIT_SECRET` (via environment variables or `.env`) and set `PYTHON_SDK_E2E=1`:
 
 ```bash
-PYTHON_SDK_E2E=1 scripts/test-in-docker.sh --python 3.14 -- pytest tests/test_e2e_upload.py
+PYTHON_SDK_E2E=1 scripts/test-in-docker.sh --python 3.14 -- pytest tests/test_e2e_upload.py tests/test_examples.py
 ```
 
-The test uploads `chameleon.jpg`, resizes it, and asserts on the live assembly results.
+The tests upload `chameleon.jpg`, run the copy/paste quickstart examples, and assert on the live assembly results.
 
 If you have a global installation of `poetry`, you can run the tests with:
 

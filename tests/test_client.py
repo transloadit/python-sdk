@@ -11,6 +11,7 @@ import requests_mock
 
 from . import request_body_matcher
 from transloadit.client import Transloadit
+from transloadit.response import Response
 
 
 def get_expected_url(params):
@@ -62,6 +63,11 @@ class ClientTest(unittest.TestCase):
         if expected_url is not None:
             self.assertEqual(expected_url, url, message or 'URL should match Node.js reference implementation')
 
+    def test_rejects_invalid_service_url(self):
+        for service in ("", "   ", "https://", "ftp://api2.transloadit.com"):
+            with self.assertRaises(ValueError):
+                Transloadit("key", "secret", service=service)
+
     @requests_mock.Mocker()
     def test_get_assembly(self, mock):
         id_ = "abcdef12345"
@@ -71,6 +77,254 @@ class ClientTest(unittest.TestCase):
         response = self.transloadit.get_assembly(assembly_id=id_)
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
         self.assertEqual(response.data["assembly_id"], "abcdef12345")
+
+    def test_assembly_urls_are_trusted_and_unauthenticated(self):
+        with mock.patch("transloadit.client.requests.request") as request_mock:
+            for method in (self.transloadit.get_assembly, self.transloadit.cancel_assembly):
+                with self.assertRaisesRegex(ValueError, "untrusted Assembly URL"):
+                    method(assembly_url="https://example.com/assemblies/abc123")
+            request_mock.assert_not_called()
+
+        raw_response = mock.Mock()
+        raw_response.json.return_value = {"ok": "ASSEMBLY_COMPLETED"}
+        with mock.patch(
+            "transloadit.client.requests.request",
+            return_value=raw_response,
+        ) as request_mock:
+            self.transloadit.get_assembly(
+                assembly_url="https://api2-region.transloadit.com/assemblies/abc123",
+                params={"nonce": 123},
+            )
+
+        request_mock.assert_called_once()
+        method, url = request_mock.call_args.args
+        request_kwargs = request_mock.call_args.kwargs
+        self.assertEqual(method, "GET")
+        self.assertEqual(url, "https://api2-region.transloadit.com/assemblies/abc123")
+        self.assertEqual(request_kwargs["params"], {"nonce": 123})
+        self.assertNotIn("Authorization", request_kwargs["headers"])
+        self.assertFalse(request_kwargs["allow_redirects"])
+
+    @requests_mock.Mocker()
+    def test_issue_bearer_token_uses_basic_auth_and_form_encoding(self, requests_mock):
+        requests_mock.post(
+            f"{self.transloadit.service}/token",
+            json={
+                "access_token": "abc",
+                "expires_in": 21600,
+                "scope": "assemblies:read",
+                "token_type": "Bearer",
+            },
+        )
+
+        response = self.transloadit.issue_bearer_token({"scope": "assemblies:read"})
+
+        self.assertEqual(response.data["access_token"], "abc")
+        request = requests_mock.request_history[0]
+        self.assertEqual(request.headers["Authorization"], "Basic a2V5OnNlY3JldA==")
+        self.assertEqual(
+            request.headers["Content-Type"],
+            "application/x-www-form-urlencoded",
+        )
+        self.assertEqual(
+            urllib.parse.parse_qs(request.text),
+            {
+                "grant_type": ["client_credentials"],
+                "scope": ["assemblies:read"],
+            },
+        )
+
+    def test_issue_bearer_token_rejects_127_prefixed_domain(self):
+        client = Transloadit("key", "secret", service="http://127.attacker.com")
+        with mock.patch("transloadit.client.requests.post") as post_mock:
+            with self.assertRaisesRegex(ValueError, "insecure bearer token endpoint"):
+                client.issue_bearer_token()
+            post_mock.assert_not_called()
+
+    def test_wait_for_assembly_polls_until_terminal(self):
+        responses = [
+            Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200),
+            Response(data={"ok": "ASSEMBLY_EXECUTING"}, status_code=200),
+            Response(data={"ok": "ASSEMBLY_COMPLETED"}, status_code=200),
+        ]
+        assembly_url = "https://api2.example/assemblies/assembly-123"
+
+        with mock.patch.object(self.transloadit, "get_assembly", side_effect=responses) as get_mock:
+            with mock.patch("transloadit.client.sleep") as sleep_mock:
+                response = self.transloadit.wait_for_assembly(assembly_url)
+
+        self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
+        self.assertEqual(
+            get_mock.call_args_list,
+            [
+                mock.call(assembly_url=assembly_url),
+                mock.call(assembly_url=assembly_url),
+                mock.call(assembly_url=assembly_url),
+            ],
+        )
+        self.assertEqual(sleep_mock.call_args_list, [mock.call(1), mock.call(1)])
+
+    def test_wait_for_assembly_rejects_non_json_poll_response(self):
+        with mock.patch.object(
+            self.transloadit,
+            "get_assembly",
+            return_value=Response(data="plain response", status_code=502),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.transloadit.wait_for_assembly("https://api2.example/assemblies/assembly-123")
+
+    def test_create_tus_assembly_uses_contract_payload(self):
+        expected_response = Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200)
+
+        with mock.patch.object(
+            self.transloadit, "create_assembly", return_value=expected_response
+        ) as create_mock:
+            response = self.transloadit.create_tus_assembly(2)
+
+        self.assertIs(response, expected_response)
+        create_mock.assert_called_once_with(
+            data={
+                "await": False,
+                "steps": {
+                    ":original": {
+                        "output_meta": True,
+                        "result": "debug",
+                        "robot": "/upload/handle",
+                    },
+                },
+            },
+            extra_data={"num_expected_upload_files": 2},
+        )
+
+    def test_quotes_path_ids(self):
+        with mock.patch.object(self.transloadit, '_request_assembly_url') as assembly_mock:
+            with mock.patch.object(self.transloadit.request, 'get') as get_mock:
+                self.transloadit.get_assembly(assembly_id='assembly/with?chars')
+                self.transloadit.get_template('template/with?chars')
+
+        self.assertEqual(
+            get_mock.call_args_list,
+            [mock.call('/templates/template%2Fwith%3Fchars', params=None)],
+        )
+        self.assertEqual(
+            assembly_mock.call_args_list,
+            [mock.call('/assemblies/assembly%2Fwith%3Fchars', 'GET', params=None)],
+        )
+
+    def test_rejects_invalid_template_ids(self):
+        invalid_ids = ("", None, ".", "..")
+        with mock.patch.object(self.transloadit.request, "get"):
+            for template_id in invalid_ids:
+                with self.assertRaises(ValueError):
+                    self.transloadit.get_template(template_id)
+
+        with mock.patch.object(self.transloadit.request, "put"):
+            for template_id in invalid_ids:
+                with self.assertRaises(ValueError):
+                    self.transloadit.update_template(template_id, {"name": "foo"})
+
+        with mock.patch.object(self.transloadit.request, "delete"):
+            for template_id in invalid_ids:
+                with self.assertRaises(ValueError):
+                    self.transloadit.delete_template(template_id)
+
+    def test_generated_endpoint_methods_call_request_helpers(self):
+        assembly_data = {"steps": {":original": {"robot": "/upload/handle"}}}
+        extra_data = {"field": "value"}
+        files = {"file": object()}
+        replay_data = {"wait": True}
+        credential_data = {"name": "demo", "type": "s3", "content": {}}
+
+        with mock.patch.object(self.transloadit.request, "get") as get_mock:
+            with mock.patch.object(self.transloadit.request, "post") as post_mock:
+                with mock.patch.object(self.transloadit.request, "put") as put_mock:
+                    with mock.patch.object(self.transloadit.request, "delete") as delete_mock:
+                        self.transloadit.create_assembly(assembly_data, extra_data, files)
+                        self.transloadit.create_assembly_with_id(
+                            "assembly/with?chars", assembly_data, extra_data, files
+                        )
+                        self.transloadit.replay_assembly("assembly/with?chars", replay_data)
+                        self.transloadit.replay_assembly_notification(
+                            "assembly/with?chars", replay_data
+                        )
+                        self.transloadit.create_template({"name": "template"})
+                        self.transloadit.validate_template_credential_oauth_on_create(
+                            {"type": "dropbox"}
+                        )
+                        self.transloadit.create_template_credentials(credential_data)
+                        self.transloadit.list_assembly_notifications("assembly/with?chars")
+                        self.transloadit.get_builtin_template("builtin/with?chars")
+                        self.transloadit.get_template_full("template/with?chars")
+                        self.transloadit.get_builtin_template_full("builtin/full?chars")
+                        self.transloadit.list_priority_job_slots()
+                        self.transloadit.list_template_credentials()
+                        self.transloadit.list_template_credential_types()
+                        self.transloadit.get_template_credentials("cred/with?chars")
+                        self.transloadit.update_template_credentials(
+                            "cred/with?chars", credential_data
+                        )
+                        self.transloadit.delete_template_credentials("cred/with?chars")
+
+        self.assertEqual(
+            post_mock.call_args_list,
+            [
+                mock.call(
+                    "/assemblies",
+                    data=assembly_data,
+                    extra_data=extra_data,
+                    files=files,
+                ),
+                mock.call(
+                    "/assemblies/assembly%2Fwith%3Fchars",
+                    data=assembly_data,
+                    extra_data=extra_data,
+                    files=files,
+                ),
+                mock.call("/assemblies/assembly%2Fwith%3Fchars/replay", data=replay_data),
+                mock.call(
+                    "/assembly_notifications/assembly%2Fwith%3Fchars/replay",
+                    data=replay_data,
+                ),
+                mock.call("/templates", data={"name": "template"}),
+                mock.call("/template_credentials/validateOauthOnCreate", data={"type": "dropbox"}),
+                mock.call("/template_credentials", data=credential_data),
+            ],
+        )
+        self.assertEqual(
+            get_mock.call_args_list,
+            [
+                mock.call("/assembly_notifications/assembly%2Fwith%3Fchars"),
+                mock.call("/templates/builtin/builtin%2Fwith%3Fchars", params=None),
+                mock.call("/templates/template%2Fwith%3Fchars/full", params=None),
+                mock.call("/templates/builtin/builtin%2Ffull%3Fchars/full", params=None),
+                mock.call("/queues/job_slots", params=None),
+                mock.call("/template_credentials", params=None),
+                mock.call("/template_credentials/types", params=None),
+                mock.call("/template_credentials/cred%2Fwith%3Fchars", params=None),
+            ],
+        )
+        put_mock.assert_called_once_with(
+            "/template_credentials/cred%2Fwith%3Fchars", data=credential_data
+        )
+        delete_mock.assert_called_once_with("/template_credentials/cred%2Fwith%3Fchars", data=None)
+
+    def test_generated_endpoint_methods_reject_empty_path_ids(self):
+        methods = [
+            self.transloadit.create_assembly_with_id,
+            self.transloadit.replay_assembly,
+            self.transloadit.replay_assembly_notification,
+            self.transloadit.list_assembly_notifications,
+            self.transloadit.get_builtin_template,
+            self.transloadit.get_template_full,
+            self.transloadit.get_builtin_template_full,
+            self.transloadit.get_template_credentials,
+            self.transloadit.delete_template_credentials,
+            self.transloadit.update_template_credentials,
+        ]
+
+        for method in methods:
+            with self.assertRaises(ValueError):
+                method("")
 
     @requests_mock.Mocker()
     def test_list_assemblies(self, mock):
@@ -274,3 +528,19 @@ class ClientTest(unittest.TestCase):
         # For parity test, set the exact expiry time to match Node.js
         params['expire_at_ms'] = expiry
         self.assert_parity_with_node(url, params)
+
+    def test_get_signed_smart_cdn_url_rejects_invalid_workspace_and_reserved_params(self):
+        client = Transloadit("test-key", "test-secret")
+
+        for workspace in ("", "-workspace", "workspace-", "Acme Workspace", "bad.workspace"):
+            with self.assertRaises(ValueError):
+                client.get_signed_smart_cdn_url(workspace, "template", "file.jpg")
+
+        for reserved_key in ("auth_key", "exp", "sig"):
+            with self.assertRaises(ValueError):
+                client.get_signed_smart_cdn_url(
+                    "workspace",
+                    "template",
+                    "file.jpg",
+                    {reserved_key: "override"},
+                )

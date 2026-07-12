@@ -1,22 +1,9 @@
 from . import optionbuilder
 
 
-class Template(optionbuilder.OptionBuilder):
+class AsyncTemplate(optionbuilder.OptionBuilder):
     """
-    Object representation of a new Template to be created.
-
-    :Attributes:
-        - transloadit (<translaodit.client.Transloadit>):
-            An instance of the Transloadit class.
-        - name (str):
-            The name of the template to be created.
-
-    :Constructor Args:
-        - transloadit (<translaodit.client.Transloadit>)
-        - name (str): The name of the template.
-        - options (Optional[dict]):
-            Params to send along with the template. Please see
-            https://transloadit.com/docs/api-docs/#4-templates for available options.
+    Object representation of a new Template to be created asynchronously.
     """
 
     def __init__(self, transloadit, name, options=None):
@@ -24,7 +11,7 @@ class Template(optionbuilder.OptionBuilder):
         self.transloadit = transloadit
         self.name = name
 
-    def create(self):
+    async def create(self):
         """
         Save/Submit the template to the Transloadit server.
         """
@@ -37,4 +24,4 @@ class Template(optionbuilder.OptionBuilder):
                 raise ValueError("template must be an object when steps are supplied.")
             template_content["steps"] = steps
         data.update({"name": self.name, "template": template_content})
-        return self.transloadit.request.post("/templates", data=data)
+        return await self.transloadit.request.post("/templates", data=data)
