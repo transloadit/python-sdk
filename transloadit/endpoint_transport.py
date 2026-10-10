@@ -1,5 +1,6 @@
 """Shared wire preparation for OAuth, SSE and raw TUS endpoints."""
 import base64
+import asyncio
 import copy
 import os
 from ipaddress import ip_address
@@ -8,6 +9,8 @@ from urllib.parse import parse_qs, unquote, urljoin, urlsplit
 
 from requests.structures import CaseInsensitiveDict
 from requests.utils import get_environ_proxies
+from aiohttp.helpers import get_env_proxy_for_url
+from yarl import URL
 
 from ._contract import CONTRACT
 from .response import Response
@@ -19,7 +22,7 @@ def sync_network_options(url):
             "verify": os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("CURL_CA_BUNDLE") or True}
 
 
-def async_network_options(url, session=None):
+async def async_network_options(url, session=None):
     # aiohttp exposes the connector publicly, but its session-level proxy defaults
     # only through these attributes. Keep explicit proxy/auth ahead of environment.
     proxy = getattr(session, "_default_proxy", None)
@@ -27,8 +30,13 @@ def async_network_options(url, session=None):
         return {"proxy": proxy, "proxy_auth": getattr(session, "_default_proxy_auth", None)}
     if session is not None and not getattr(session, "trust_env", True):
         return {"proxy": None}
-    proxies = get_environ_proxies(url)
-    return {"proxy": proxies.get(urlsplit(url).scheme) or proxies.get("all")}
+    try:
+        # Use aiohttp's exact policy (including proxy-only netrc credentials),
+        # and keep netrc file reads off the event loop like ClientSession does.
+        proxy, proxy_auth = await asyncio.to_thread(get_env_proxy_for_url, URL(url))
+    except LookupError:
+        return {"proxy": None}
+    return {"proxy": proxy, "proxy_auth": proxy_auth}
 
 
 def token_request(client, data):

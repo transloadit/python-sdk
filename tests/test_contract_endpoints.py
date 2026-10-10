@@ -355,6 +355,68 @@ def test_isolated_async_calls_preserve_explicit_proxy_configuration(monkeypatch,
     asyncio.run(scenario())
 
 
+def test_async_proxy_selection_matches_signed_calls_with_all_proxy(monkeypatch):
+    for name in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "all_proxy", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ALL_PROXY", "socks5://127.0.0.2:1")
+    monkeypatch.setenv("NO_PROXY", "")
+    async def scenario():
+        async with wire_client("async") as (client, server):
+            await client.list_templates()
+            await client.get_assembly(assembly_id=ASSEMBLY_ID)
+            client.bearer_token = "selected-token"
+            await client.list_templates()
+            assert len(server.requests) == 3
+    asyncio.run(scenario())
+
+
+def test_async_environment_proxy_preserves_proxy_netrc_only(monkeypatch, tmp_path):
+    netrc = tmp_path / "netrc"
+    netrc.write_text("machine 127.0.0.1 login proxy-user password proxy-password\nmachine 127.0.0.2 login origin-user password must-not-leak\n")
+    monkeypatch.setenv("NETRC", str(netrc))
+    monkeypatch.delenv("http_proxy", raising=False)
+    monkeypatch.delenv("no_proxy", raising=False)
+    monkeypatch.setenv("NO_PROXY", "")
+    async def scenario():
+        async with wire_client("async") as (client, server):
+            monkeypatch.setenv("HTTP_PROXY", server.url)
+            client.service = "http://127.0.0.2:1"
+            await client.get_assembly(assembly_id=ASSEMBLY_ID)
+            client.bearer_token = "selected-token"
+            await client.list_templates()
+            for request in server.requests:
+                assert request["headers"]["Proxy-Authorization"] == aiohttp.BasicAuth("proxy-user", "proxy-password").encode()
+            assert "Authorization" not in server.requests[0]["headers"]
+            assert server.requests[1]["headers"]["Authorization"] == "Bearer selected-token"
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+@pytest.mark.parametrize("filename", ["my photo.jpg", "caf\u00e9.jpg", "quote\"name.txt", "newline\r\nname.txt"])
+def test_multipart_preserves_original_filename(mode, filename):
+    async def scenario():
+        async with wire_client(mode) as (client, server):
+            upload = io.BytesIO(b"data")
+            upload.name = filename
+            await call(client, "create_assembly", files={"file": upload})
+            # Quoting must prevent header injection while preserving spaces/UTF-8.
+            expected = filename.replace("\r", "%0D").replace("\n", "%0A").replace('"', '%22')
+            assert server.requests[-1]["filenames"]["file"] == expected
+            assert not upload.closed
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_multipart_field_names_cannot_inject_headers(mode):
+    async def scenario():
+        async with wire_client(mode) as (client, server):
+            await call(client, "create_assembly", files={"file\r\nname": io.BytesIO(b"data")},
+                       extra_data={"quoted\"field": "value"})
+            assert server.requests[-1]["fields"]["file%0D%0Aname"] == b"data"
+            assert server.requests[-1]["fields"]["quoted%22field"] == "value"
+    asyncio.run(scenario())
+
+
 ASSEMBLY_ID = "a" * 32
 
 
@@ -369,14 +431,17 @@ class WireServer:
     async def handle(self, request):
         data = b""
         fields = {}
+        filenames = {}
         if request.content_type == "multipart/form-data":
             for key, value in (await request.post()).items():
                 fields[key] = value.file.read() if isinstance(value, web.FileField) else value
+                if isinstance(value, web.FileField):
+                    filenames[key] = value.filename
         else:
             data = await request.read()
             if request.content_type == "application/x-www-form-urlencoded":
                 fields = {key: values[0] for key, values in parse_qs(data.decode()).items()}
-        record = {"method": request.method, "path": request.path, "body": data,
+        record = {"method": request.method, "path": request.path, "body": data, "filenames": filenames,
                   "fields": fields, "query": dict(request.query), "headers": CaseInsensitiveDict(request.headers)}
         self.requests.append(record)
         if request.method == "GET" and request.path == "/assemblies/" + ASSEMBLY_ID:

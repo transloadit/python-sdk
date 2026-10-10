@@ -24,6 +24,10 @@ from .upload import get_upload_filename, run_upload_worker
 TIMEOUT = 60
 
 
+def _multipart_parameter(value):
+    return str(value).replace("\r", "%0D").replace("\n", "%0A").replace('"', "%22")
+
+
 class _NonClosingUploadStream(io.IOBase):
     def __init__(self, file_stream):
         self._file_stream = file_stream
@@ -129,11 +133,11 @@ class AsyncRequest:
         else:
             yield await self._ensure_session()
 
-    def _request_options(self, url):
+    async def _request_options(self, url):
         headers = self._headers(url)
         options = {"headers": headers, "timeout": self._timeout(), "allow_redirects": False}
         if "Authorization" in headers:
-            options.update(async_network_options(url, self._session))
+            options.update(await async_network_options(url, self._session))
         return options
 
     def _get_session_lock(self):
@@ -199,7 +203,7 @@ class AsyncRequest:
         async with self._api_session(url) as session, session.get(
             url,
             params=self._to_request_payload(url, params),
-            **self._request_options(url),
+            **(await self._request_options(url)),
         ) as response:
             return Response(
                 data=await self._read_response_data(response),
@@ -221,9 +225,11 @@ class AsyncRequest:
 
         uploads = []
         if files:
-            form = aiohttp.FormData()
+            # API2 preserves percent escapes in filename parameters. Match
+            # Requests' RFC 7578 quoting while retaining spaces and UTF-8.
+            form = aiohttp.FormData(quote_fields=False)
             for key, value in self._normalize_payload(data):
-                form.add_field(key, value)
+                form.add_field(_multipart_parameter(key), value)
 
             for key, file_stream in files.items():
                 wrapper = _NonClosingTextUploadStream if isinstance(file_stream, io.TextIOBase) else _NonClosingUploadStream
@@ -232,9 +238,9 @@ class AsyncRequest:
                 filename = get_upload_filename(file_stream, key)
                 content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
                 form.add_field(
-                    key,
+                    _multipart_parameter(key),
                     upload,
-                    filename=filename,
+                    filename=_multipart_parameter(filename),
                     content_type=content_type,
                 )
             payload = form
@@ -245,7 +251,7 @@ class AsyncRequest:
             async with self._api_session(url) as session, getattr(session, method)(
                 url,
                 data=payload,
-                **self._request_options(url),
+                **(await self._request_options(url)),
             ) as response:
                 return Response(
                     data=await self._read_response_data(response),
@@ -279,7 +285,7 @@ class AsyncRequest:
         async with self._api_session(url) as session, session.delete(
             url,
             data=data,
-            **self._request_options(url),
+            **(await self._request_options(url)),
         ) as response:
             return Response(
                 data=await self._read_response_data(response),
@@ -336,7 +342,7 @@ class AsyncRequest:
         async with self._isolated_session() as session:
             async with session.request(method, url, params=params, data=data,
                                        headers=self._headers(), timeout=self._timeout(), allow_redirects=False,
-                                       **async_network_options(url, self._session)) as response:
+                                       **(await async_network_options(url, self._session))) as response:
                 return Response(data=await self._read_response_data(response), status_code=response.status,
                                 headers=CaseInsensitiveDict(response.headers))
 
@@ -345,7 +351,7 @@ class AsyncRequest:
         headers.update(self._headers())
         async with self._isolated_session() as session:
             async with session.post(url, data=self._normalize_payload(data), headers=headers,
-                                    timeout=self._timeout(), allow_redirects=False, **async_network_options(url, self._session)) as response:
+                                    timeout=self._timeout(), allow_redirects=False, **(await async_network_options(url, self._session))) as response:
                 return Response(data=await self._read_response_data(response), status_code=response.status,
                                 headers=CaseInsensitiveDict(response.headers))
 
@@ -354,7 +360,7 @@ class AsyncRequest:
         headers.update(self._headers())
         async with self._isolated_session() as session:
             async with session.request(spec["method"], url, data=body, headers=headers,
-                                       timeout=self._timeout(), allow_redirects=False, **async_network_options(url, self._session)) as raw:
+                                       timeout=self._timeout(), allow_redirects=False, **(await async_network_options(url, self._session))) as raw:
                 data = await raw.read() if spec["binary_response"] else await self._read_response_data(raw)
                 response = Response(data=data, status_code=raw.status, headers=CaseInsensitiveDict(raw.headers))
         if spec["method"] == "POST":
@@ -368,7 +374,7 @@ class AsyncRequest:
         timeout = aiohttp.ClientTimeout(total=None, sock_connect=TIMEOUT, sock_read=read_timeout)
         async with self._isolated_session() as session:
             async with session.get(url, headers={**self._headers(), "Accept": "text/event-stream"},
-                                   timeout=timeout, allow_redirects=False, **async_network_options(url, self._session)) as response:
+                                   timeout=timeout, allow_redirects=False, **(await async_network_options(url, self._session))) as response:
                 if response.status != 200:
                     raise StreamError(response.status)
                 if response.headers.get("Content-Type", "").split(";", 1)[0].lower() != "text/event-stream":
