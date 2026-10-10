@@ -117,6 +117,7 @@ verify_repo_state() {
 
 verify_versions_consistent() {
   local version python_version header_version
+  local dry_run=${1:-0}
   version=$(poetry version -s)
   python_version=$(python -c "import transloadit; print(transloadit.__version__)")
   header_version=$(grep -oE 'python-sdk:[0-9]+\.[0-9]+\.[0-9]+' tests/test_request.py | tail -n1 | cut -d: -f2)
@@ -131,6 +132,11 @@ verify_versions_consistent() {
   fi
   if ! grep -Eq "^### ${version}([[:space:]/]|$)" CHANGELOG.md; then
     err "CHANGELOG.md does not contain an entry for ${version}"
+    exit 1
+  fi
+  # Dry runs can build a prepared release before its release date is set.
+  if [[ "$dry_run" == "0" ]] && grep -Eq "^### ${version}[[:space:]/]+Unreleased([[:space:]/]|$)" CHANGELOG.md; then
+    err "CHANGELOG.md still marks ${version} as Unreleased. Set the release date before publishing."
     exit 1
   fi
 }
@@ -167,7 +173,7 @@ publish_inside_container() {
   export POETRY_PYPI_TOKEN_PYPI="$PYPI_TOKEN"
 
   verify_repo_state
-  verify_versions_consistent
+  verify_versions_consistent "$dry_run"
 
   rm -rf dist
   poetry build

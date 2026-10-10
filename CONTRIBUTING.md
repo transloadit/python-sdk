@@ -8,17 +8,18 @@
 - PyPI API token with publish rights (`PYPI_TOKEN`), exported or stored in `.env`
 
 **Steps for version `2.0.0` (example)**
-1. Bump version in `pyproject.toml`, `transloadit/__init__.py`, and `tests/test_request.py`.
-2. Add the `### 2.0.0 / YYYY-MM-DD ###` entry to `CHANGELOG.md`.
-3. Run the matrix (add `PYTHON_SDK_E2E=1` if you want the live upload):
+1. Bump version in `pyproject.toml`, `transloadit/__init__.py`, and `tests/test_request.py`, and update `version`/`release` in `docs/source/conf.py`. PR #56 prepares these as `2.0.0`/`2.0` already.
+2. Replace `Unreleased` in the `### 2.0.0 / Unreleased ###` entry in `CHANGELOG.md` with the actual release date (`YYYY-MM-DD`). Review the breaking changes and upgrade notes in README and the Sphinx docs. The publishing helper rejects an `Unreleased` entry; `--dry-run` allows it so a prepared release can still be validated.
+3. Run the full Python 3.12, 3.13, and 3.14 matrix, then the optional live upload with test-account credentials:
    ```bash
-   ./scripts/test-in-docker.sh --python 3.14
+   ./scripts/test-in-docker.sh
+   PYTHON_SDK_E2E=1 ./scripts/test-in-docker.sh --python 3.14 -- pytest tests/test_e2e_upload.py --no-cov
    ```
 4. Commit on `main`: `git commit -am "Release v2.0.0"`
 5. Tag & push:
    ```bash
    git tag v2.0.0
-   git push origin main --tags
+   git push origin main v2.0.0
    ```
 6. Publish to PyPI via Docker helper (ensures clean tree & version alignment):
    ```bash
