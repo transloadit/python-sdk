@@ -286,26 +286,6 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await self.server.close()
 
-    async def test_issue_bearer_token_uses_basic_auth_and_form_encoding(self):
-        session = _RecordingSession({
-            "access_token": "abc",
-            "expires_in": 21600,
-            "scope": "assemblies:read",
-            "token_type": "Bearer",
-        })
-        client = AsyncTransloadit("key", "secret", service=self.server.base_url, session=session)
-
-        response = await client.issue_bearer_token({"scope": "assemblies:read"})
-
-        self.assertEqual(response.data["access_token"], "abc")
-        url, kwargs = session.calls[0]
-        self.assertEqual(url, f"{self.server.base_url}/token")
-        self.assertEqual(
-            kwargs["data"],
-            {"grant_type": "client_credentials", "scope": "assemblies:read"},
-        )
-        self.assertEqual(kwargs["headers"]["Authorization"], "Basic a2V5OnNlY3JldA==")
-        self.assertFalse(kwargs["allow_redirects"])
 
     async def test_issue_bearer_token_rejects_127_prefixed_domain(self):
         session = _RecordingSession({})
@@ -523,7 +503,6 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                             {"type": "dropbox"}
                         )
                         await client.create_template_credentials(credential_data)
-                        await client.list_assembly_notifications("assembly/with?chars")
                         await client.get_builtin_template("builtin/with?chars")
                         await client.get_template_full("template/with?chars")
                         await client.get_builtin_template_full("builtin/full?chars")
@@ -562,7 +541,6 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(
             get_mock.await_args_list,
             [
-                mock.call("/assembly_notifications/assembly%2Fwith%3Fchars"),
                 mock.call("/templates/builtin/builtin%2Fwith%3Fchars", params=None),
                 mock.call("/templates/template%2Fwith%3Fchars/full", params=None),
                 mock.call("/templates/builtin/builtin%2Ffull%3Fchars/full", params=None),

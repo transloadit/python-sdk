@@ -7,6 +7,7 @@ import json
 import mimetypes
 import os
 from datetime import datetime, timedelta, timezone
+from contextlib import asynccontextmanager
 from types import MappingProxyType
 
 import aiohttp
@@ -14,7 +15,9 @@ from requests.structures import CaseInsensitiveDict
 
 from . import __version__
 from .api_url import should_sign_api_url
+from .endpoint_transport import capability_url, token_request, tus_request, validate_upload_location
 from .response import Response
+from .stream import EventParser, StreamError
 from .upload import get_upload_filename
 
 TIMEOUT = 60
@@ -85,8 +88,11 @@ class AsyncRequest:
     def session(self):
         return self._session
 
-    def _headers(self):
-        return dict(self.HEADERS)
+    def _headers(self, url=None):
+        headers = dict(self.HEADERS)
+        if url and getattr(self.transloadit, "bearer_token", None) and should_sign_api_url(url, self.transloadit.service):
+            headers["Authorization"] = "Bearer " + self.transloadit.bearer_token
+        return headers
 
     def _get_session_lock(self):
         if self._session_lock is None:
@@ -152,8 +158,9 @@ class AsyncRequest:
         async with session.get(
             url,
             params=self._to_request_payload(url, params),
-            headers=self._headers(),
+            headers=self._headers(url),
             timeout=self._timeout(),
+            allow_redirects=False,
         ) as response:
             return Response(
                 data=await self._read_response_data(response),
@@ -165,6 +172,9 @@ class AsyncRequest:
         """
         Makes an asynchronous HTTP POST request.
         """
+        return await self._form_request("post", path, data, extra_data, files)
+
+    async def _form_request(self, method, path, data=None, extra_data=None, files=None):
         url = self._get_full_url(path)
         session = await self._ensure_session()
         data = self._to_request_payload(url, data) or {}
@@ -189,11 +199,12 @@ class AsyncRequest:
         else:
             payload = self._normalize_payload(data)
 
-        async with session.post(
+        async with getattr(session, method)(
             url,
             data=payload,
-            headers=self._headers(),
+            headers=self._headers(url),
             timeout=self._timeout(),
+            allow_redirects=False,
         ) as response:
             return Response(
                 data=await self._read_response_data(response),
@@ -201,24 +212,14 @@ class AsyncRequest:
                 headers=CaseInsensitiveDict(response.headers),
             )
 
-    async def put(self, path, data=None):
+    async def put(self, path, data=None, extra_data=None, files=None):
         """
         Makes an asynchronous HTTP PUT request.
         """
-        url = self._get_full_url(path)
-        session = await self._ensure_session()
-        data = self._normalize_payload(self._to_request_payload(url, data) or {})
-        async with session.put(
-            url,
-            data=data,
-            headers=self._headers(),
-            timeout=self._timeout(),
-        ) as response:
-            return Response(
-                data=await self._read_response_data(response),
-                status_code=response.status,
-                headers=CaseInsensitiveDict(response.headers),
-            )
+        return await self._form_request("put", path, data, extra_data, files)
+
+    async def patch(self, path, data=None):
+        return await self._form_request("patch", path, data)
 
     async def delete(self, path, data=None):
         """
@@ -230,8 +231,9 @@ class AsyncRequest:
         async with session.delete(
             url,
             data=data,
-            headers=self._headers(),
+            headers=self._headers(url),
             timeout=self._timeout(),
+            allow_redirects=False,
         ) as response:
             return Response(
                 data=await self._read_response_data(response),
@@ -241,6 +243,8 @@ class AsyncRequest:
 
     def _to_payload(self, data):
         data = copy.deepcopy(data or {})
+        if getattr(self.transloadit, "bearer_token", None):
+            return {"params": json.dumps(data)}
         expiry = datetime.now(timezone.utc) + timedelta(seconds=self.transloadit.duration)
         if "auth" in data and not isinstance(data["auth"], dict):
             raise ValueError("auth must be a dictionary when provided.")
@@ -268,3 +272,55 @@ class AsyncRequest:
         if url.startswith(("http://", "https://")):
             return url
         return self.transloadit.service + url
+
+    async def public(self, method, path, params=None, data=None):
+        # A separate session prevents injected session cookies/auth from leaking
+        # onto credential-free capability and public endpoints.
+        async with aiohttp.ClientSession(trust_env=False) as session:
+            async with session.request(method, self._get_full_url(path), params=params, data=data,
+                                       headers=self._headers(), timeout=self._timeout(), allow_redirects=False) as response:
+                return Response(data=await self._read_response_data(response), status_code=response.status,
+                                headers=CaseInsensitiveDict(response.headers))
+
+    async def issue_bearer_token(self, data=None):
+        url, data, headers = token_request(self.transloadit, data)
+        headers.update(self._headers())
+        async with aiohttp.ClientSession(trust_env=False) as session:
+            async with session.post(url, data=self._normalize_payload(data), headers=headers,
+                                    timeout=self._timeout(), allow_redirects=False) as response:
+                return Response(data=await self._read_response_data(response), status_code=response.status,
+                                headers=CaseInsensitiveDict(response.headers))
+
+    async def tus(self, operation_id, location, headers=None, body=None):
+        spec, url, headers, body = tus_request(self.transloadit, operation_id, location, headers, body)
+        headers.update(self._headers())
+        async with aiohttp.ClientSession(trust_env=False) as session:
+            async with session.request(spec["method"], url, data=body, headers=headers,
+                                       timeout=self._timeout(), allow_redirects=False) as raw:
+                data = await raw.read() if spec["binary_response"] else await self._read_response_data(raw)
+                response = Response(data=data, status_code=raw.status, headers=CaseInsensitiveDict(raw.headers))
+        if spec["method"] == "POST":
+            validate_upload_location(self.transloadit, url, response)
+        return response
+
+    @asynccontextmanager
+    async def stream_status(self, url, *, read_timeout=120, max_event_size=1048576):
+        url = capability_url(self.transloadit, url, "status-stream")
+        parser = EventParser(max_event_size)
+        timeout = aiohttp.ClientTimeout(total=None, sock_connect=TIMEOUT, sock_read=read_timeout)
+        async with aiohttp.ClientSession(trust_env=False) as session:
+            async with session.get(url, headers={**self._headers(), "Accept": "text/event-stream"},
+                                   timeout=timeout, allow_redirects=False) as response:
+                if response.status != 200:
+                    raise StreamError(response.status)
+                if response.headers.get("Content-Type", "").split(";", 1)[0].lower() != "text/event-stream":
+                    raise StreamError(response.status, "Expected text/event-stream")
+
+                async def events():
+                    async for chunk in response.content.iter_any():
+                        for event in parser.feed(chunk):
+                            yield event
+                            if event.terminal:
+                                return
+
+                yield events()

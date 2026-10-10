@@ -1,7 +1,7 @@
 import asyncio
 import base64
 from typing import Optional
-from urllib.parse import quote, urljoin
+from urllib.parse import quote
 
 from . import async_assembly, async_request, async_template
 from .api_url import normalize_service_url, require_path_id
@@ -20,11 +20,14 @@ class AsyncTransloadit:
         service: str = "https://api2.transloadit.com",
         duration: int = 300,
         session=None,
+        *,
+        bearer_token: str = None,
     ):
         self.service = normalize_service_url(service)
         self.auth_key = auth_key
         self.auth_secret = auth_secret
         self.duration = duration
+        self.bearer_token = bearer_token
         self.request = async_request.AsyncRequest(self, session=session)
 
     async def __aenter__(self):
@@ -46,11 +49,7 @@ class AsyncTransloadit:
         """
         return async_assembly.AsyncAssembly(self, options=params)
 
-    # <api2-generated-endpoints>
-    # This block is generated from Transloadit API2 contracts. If it looks wrong,
-    # please report the issue instead of editing this block by hand; the source fix
-    # belongs in the contract generator so all SDKs stay in sync.
-
+    # Compatibility aliases and capability URL handling are maintained by hand.
     def _quote_path_segment(self, value: str) -> str:
         value = str(value)
         if value in (".", ".."):
@@ -121,12 +120,6 @@ class AsyncTransloadit:
                 headers=raw_response.headers,
             )
 
-    async def create_assembly(self, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
-        """
-        Create a new Assembly.
-        """
-        return await self.request.post("/assemblies", data=data, extra_data=extra_data, files=files)
-
     async def create_assembly_with_id(self, assembly_id: str, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
         """
         Create an Assembly with a chosen ID.
@@ -134,62 +127,6 @@ class AsyncTransloadit:
         assembly_id = require_path_id(assembly_id, "assembly_id")
 
         return await self.request.post(f"/assemblies/{self._quote_path_segment(assembly_id)}", data=data, extra_data=extra_data, files=files)
-
-    async def list_assemblies(self, params: Optional[dict] = None):
-        """
-        Retrieve list of Assemblies.
-        """
-        return await self.request.get("/assemblies", params=params)
-
-    async def get_assembly(self, assembly_id: str = None, assembly_url: str = None, params: Optional[dict] = None):
-        """
-        Retrieve an Assembly Status.
-        """
-        if not (assembly_id or assembly_url):
-            raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
-
-        url = assembly_url if assembly_url else f"/assemblies/{self._quote_path_segment(assembly_id)}"
-        return await self._request_assembly_url(url, "GET", params=params)
-
-    async def cancel_assembly(self, assembly_id: str = None, assembly_url: str = None):
-        """
-        Cancel a running Assembly.
-        """
-        if not (assembly_id or assembly_url):
-            raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
-
-        url = assembly_url if assembly_url else f"/assemblies/{self._quote_path_segment(assembly_id)}"
-        return await self._request_assembly_url(url, "DELETE")
-
-    async def replay_assembly(self, assembly_id: str, data: Optional[dict] = None):
-        """
-        Replay an Assembly.
-        """
-        assembly_id = require_path_id(assembly_id, "assembly_id")
-
-        return await self.request.post(f"/assemblies/{self._quote_path_segment(assembly_id)}/replay", data=data)
-
-    async def replay_assembly_notification(self, assembly_id: str, data: Optional[dict] = None):
-        """
-        Replay Assembly Notification.
-        """
-        assembly_id = require_path_id(assembly_id, "assembly_id")
-
-        return await self.request.post(f"/assembly_notifications/{self._quote_path_segment(assembly_id)}/replay", data=data)
-
-    async def list_assembly_notifications(self, assembly_id: str):
-        """
-        Retrieve Assembly Notifications.
-        """
-        assembly_id = require_path_id(assembly_id, "assembly_id")
-
-        return await self.request.get(f"/assembly_notifications/{self._quote_path_segment(assembly_id)}")
-
-    async def get_bill(self, month: int, year: int, params: Optional[dict] = None):
-        """
-        Retrieve a month’s bill.
-        """
-        return await self.request.get(f"/bill/{year}-{month:02d}", params=params)
 
     async def get_bill_for_invoice(self, date: str, invoice_id: str, params: Optional[dict] = None):
         """
@@ -199,18 +136,6 @@ class AsyncTransloadit:
         invoice_id = require_path_id(invoice_id, "invoice_id")
 
         return await self.request.get(f"/bill/{self._quote_path_segment(date)}/{self._quote_path_segment(invoice_id)}", params=params)
-
-    async def list_templates(self, params: Optional[dict] = None):
-        """
-        Retrieve list of Templates.
-        """
-        return await self.request.get("/templates", params=params)
-
-    async def create_template(self, data: Optional[dict] = None):
-        """
-        Create a new Template.
-        """
-        return await self.request.post("/templates", data=data)
 
     async def get_template_full(self, template_id_or_name: str, params: Optional[dict] = None):
         """
@@ -228,14 +153,6 @@ class AsyncTransloadit:
 
         return await self.request.get(f"/templates/builtin/{self._quote_path_segment(builtin_template_slug)}/full", params=params)
 
-    async def get_template(self, template_id: str, params: Optional[dict] = None):
-        """
-        Retrieve a Template.
-        """
-        template_id = require_path_id(template_id, "template_id")
-
-        return await self.request.get(f"/templates/{self._quote_path_segment(template_id)}", params=params)
-
     async def get_builtin_template(self, builtin_template_slug: str, params: Optional[dict] = None):
         """
         Retrieve a built-in Template.
@@ -244,139 +161,403 @@ class AsyncTransloadit:
 
         return await self.request.get(f"/templates/builtin/{self._quote_path_segment(builtin_template_slug)}", params=params)
 
-    async def update_template(self, template_id: str, data: Optional[dict] = None):
-        """
-        Edit a Template.
-        """
-        template_id = require_path_id(template_id, "template_id")
-
-        return await self.request.put(f"/templates/{self._quote_path_segment(template_id)}", data=data)
-
-    async def delete_template(self, template_id: str, data: Optional[dict] = None):
-        """
-        Delete a Template.
-        """
-        template_id = require_path_id(template_id, "template_id")
-
-        return await self.request.delete(f"/templates/{self._quote_path_segment(template_id)}", data=data)
-
-    async def list_priority_job_slots(self, params: Optional[dict] = None):
-        """
-        Retrieve currently used priority job slots.
-        """
-        return await self.request.get("/queues/job_slots", params=params)
-
-    async def issue_bearer_token(self, data: Optional[dict] = None):
-        """
-        Create a bearer token.
-        """
-        if not self.auth_secret:
-            raise ValueError("Bearer token issuance requires an auth secret.")
-
-        from ipaddress import ip_address
-        from urllib.parse import urlparse
-
-        endpoint = urlparse(self.service)
-        try:
-            loopback = endpoint.hostname == "localhost" or ip_address(
-                endpoint.hostname or ""
-            ).is_loopback
-        except ValueError:
-            loopback = False
-        if (
-            endpoint.username is not None
-            or endpoint.password is not None
-            or not (endpoint.scheme == "https" or (endpoint.scheme == "http" and loopback))
-        ):
-            raise ValueError("Refusing to send credentials to an insecure bearer token endpoint.")
-
-        data = data or {}
-        form_data = {}
-        if data.get("aud") is not None:
-            form_data["aud"] = data["aud"]
-        form_data["grant_type"] = "client_credentials"
-        if data.get("scope") is not None:
-            form_data["scope"] = data["scope"]
-
-        credentials = base64.b64encode(
-            f"{self.auth_key}:{self.auth_secret}".encode("utf-8")
-        ).decode("ascii")
-        headers = {
-            "Accept": "application/json",
-            "Authorization": f"Basic {credentials}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-        headers.update(self.request._headers())
-        session = await self.request._ensure_session()
-        async with session.post(
-            self.service.rstrip("/") + "/token",
-            data=form_data,
-            headers=headers,
-            timeout=self.request._timeout(),
-            allow_redirects=False,
-        ) as raw_response:
-            from .response import Response
-
-            return Response(
-                data=await self.request._read_response_data(raw_response),
-                status_code=raw_response.status,
-                headers=raw_response.headers,
-            )
-
-    async def list_template_credentials(self, params: Optional[dict] = None):
-        """
-        Retrieve list of Template Credentials.
-        """
-        return await self.request.get("/template_credentials", params=params)
-
-    async def list_template_credential_types(self, params: Optional[dict] = None):
-        """
-        Retrieve Template Credential types.
-        """
-        return await self.request.get("/template_credentials/types", params=params)
-
     async def validate_template_credential_oauth_on_create(self, data: Optional[dict] = None):
         """
         Validate an OAuth Template Credential name.
         """
         return await self.request.post("/template_credentials/validateOauthOnCreate", data=data)
 
-    async def create_template_credentials(self, data: Optional[dict] = None):
-        """
-        Create a new Template Credential.
-        """
-        return await self.request.post("/template_credentials", data=data)
+    # <api2-generated-endpoints>
+    # Generated by scripts/generate_endpoints.py; edit the generator, not this block.
 
-    async def get_template_credentials(self, identifier: str, params: Optional[dict] = None):
+    async def assembly_stats(self, params=None):
         """
-        Retrieve a Template Credential.
+        Retrieve Assembly statistics
+
+        Contract operation: api2.assembly-stats.
         """
-        identifier = require_path_id(identifier, "identifier")
+        return await self.request.get('/assembly_stats', params=params)
 
-        return await self.request.get(f"/template_credentials/{self._quote_path_segment(identifier)}", params=params)
-
-    async def delete_template_credentials(self, identifier: str, data: Optional[dict] = None):
+    async def bulk_delete_dam_assets(self, data=None):
         """
-        Delete a Template Credential.
+        Delete DAM assets in bulk
+
+        Contract operation: api2.bulk-delete-dam-assets.
+        Stage: alpha; this API may change.
         """
-        identifier = require_path_id(identifier, "identifier")
+        return await self.request.post('/dam/assets/bulk/delete', data=data)
 
-        return await self.request.delete(f"/template_credentials/{self._quote_path_segment(identifier)}", data=data)
-
-    async def update_template_credentials(self, identifier: str, data: Optional[dict] = None):
+    async def bulk_move_dam_assets(self, data=None):
         """
-        Edit a Template Credential.
+        Move DAM assets in bulk
+
+        Contract operation: api2.bulk-move-dam-assets.
+        Stage: alpha; this API may change.
         """
-        identifier = require_path_id(identifier, "identifier")
+        return await self.request.post('/dam/assets/bulk/move', data=data)
 
-        return await self.request.put(f"/template_credentials/{self._quote_path_segment(identifier)}", data=data)
+    async def cancel_assembly(self, assembly_id=None, assembly_url=None):
+        """
+        Cancel a running Assembly
 
+        Contract operation: api2.cancel-assembly.
+        """
+        if not (assembly_id or assembly_url):
+            raise ValueError("Either assembly_id or assembly_url is required.")
+        url = assembly_url if assembly_url else f"/assemblies/{self._quote_path_segment(assembly_id)}"
+        return await self._request_assembly_url(url, 'DELETE')
+
+    async def create_assembly(self, data=None, extra_data=None, files=None):
+        """
+        Create a new Assembly
+
+        Contract operation: api2.create-assembly.
+        """
+        return await self.request.post('/assemblies', data=data, extra_data=extra_data, files=files)
+
+    async def create_auth_key(self, data=None):
+        """
+        Create a new Auth Key
+
+        Contract operation: api2.create-auth-key.
+        """
+        return await self.request.post('/auth_keys', data=data)
+
+    async def create_template(self, data=None):
+        """
+        Create a new Template
+
+        Contract operation: api2.create-template.
+        """
+        return await self.request.post('/templates', data=data)
+
+    async def create_template_credentials(self, data=None):
+        """
+        Create a new Template Credential
+
+        Contract operation: api2.create-template-credential.
+        """
+        return await self.request.post('/template_credentials', data=data)
+
+    async def delete_auth_key(self, auth_key_id: str, data=None):
+        """
+        Delete an Auth Key
+
+        Contract operation: api2.delete-auth-key.
+        """
+        auth_key_id = require_path_id(auth_key_id, 'auth_key_id')
+        return await self.request.delete(f'/auth_keys/{self._quote_path_segment(auth_key_id)}', data=data)
+
+    async def delete_dam_asset(self, asset_id: str, data=None):
+        """
+        Delete a DAM asset
+
+        Contract operation: api2.delete-dam-asset.
+        Stage: alpha; this API may change.
+        """
+        asset_id = require_path_id(asset_id, 'asset_id')
+        return await self.request.delete(f'/dam/assets/{self._quote_path_segment(asset_id)}', data=data)
+
+    async def delete_template(self, template_id: str, data=None):
+        """
+        Delete a Template
+
+        Contract operation: api2.delete-template.
+        """
+        template_id = require_path_id(template_id, 'template_id')
+        return await self.request.delete(f'/templates/{self._quote_path_segment(template_id)}', data=data)
+
+    async def delete_template_credentials(self, identifier: str, data=None):
+        """
+        Delete a Template Credential
+
+        Contract operation: api2.delete-template-credential.
+        """
+        identifier = require_path_id(identifier, 'identifier')
+        return await self.request.delete(f'/template_credentials/{self._quote_path_segment(identifier)}', data=data)
+
+    async def get_assembly(self, assembly_id=None, assembly_url=None, params=None):
+        """
+        Retrieve an Assembly Status
+
+        Contract operation: api2.get-assembly.
+        """
+        if not (assembly_id or assembly_url):
+            raise ValueError("Either assembly_id or assembly_url is required.")
+        url = assembly_url if assembly_url else f"/assemblies/{self._quote_path_segment(assembly_id)}"
+        return await self._request_assembly_url(url, 'GET', params=params)
+
+    async def get_bill(self, month: int, year: int, params=None):
+        """
+        Retrieve a month’s bill
+
+        Contract operation: api2.get-bill.
+        """
+        return await self.request.get(f'/bill/{year}-{month:02d}', params=params)
+
+    async def get_dam_asset(self, asset_id: str, params=None):
+        """
+        Retrieve a Storage asset
+
+        Contract operation: api2.get-dam-asset.
+        """
+        asset_id = require_path_id(asset_id, 'asset_id')
+        return await self.request.get(f'/dam/assets/{self._quote_path_segment(asset_id)}', params=params)
+
+    async def get_template(self, template_id: str, params=None):
+        """
+        Retrieve a Template
+
+        Contract operation: api2.get-template.
+        """
+        template_id = require_path_id(template_id, 'template_id')
+        return await self.request.get(f'/templates/{self._quote_path_segment(template_id)}', params=params)
+
+    async def get_template_credentials(self, identifier: str, params=None):
+        """
+        Retrieve a Template Credential
+
+        Contract operation: api2.get-template-credential.
+        """
+        identifier = require_path_id(identifier, 'identifier')
+        return await self.request.get(f'/template_credentials/{self._quote_path_segment(identifier)}', params=params)
+
+    async def issue_bearer_token(self, data=None):
+        """
+        Create a bearer token
+
+        Contract operation: api2.issue-bearer-token.
+        """
+        return await self.request.issue_bearer_token(data)
+
+    async def list_assemblies(self, params=None):
+        """
+        Retrieve list of Assemblies
+
+        Contract operation: api2.list-assemblies.
+        """
+        return await self.request.get('/assemblies', params=params)
+
+    async def list_assembly_notifications(self, assembly_id: str, params=None):
+        """
+        Retrieve Assembly Notifications
+
+        Contract operation: api2.list-assembly-notifications.
+        """
+        assembly_id = require_path_id(assembly_id, 'assembly_id')
+        return await self.request.public('GET', f'/assembly_notifications/{self._quote_path_segment(assembly_id)}', params=params)
+
+    async def list_auth_key_scopes(self, params=None):
+        """
+        Retrieve Auth Key scopes
+
+        Contract operation: api2.list-auth-key-scopes.
+        """
+        return await self.request.get('/auth_keys/scopes', params=params)
+
+    async def list_auth_keys(self, params=None):
+        """
+        Retrieve list of Auth Keys
+
+        Contract operation: api2.list-auth-keys.
+        """
+        return await self.request.get('/auth_keys', params=params)
+
+    async def list_dam_assets(self, params=None):
+        """
+        List Storage assets
+
+        Contract operation: api2.list-dam-assets.
+        """
+        return await self.request.get('/dam/assets', params=params)
+
+    async def list_priority_job_slots(self, params=None):
+        """
+        Retrieve currently used priority job slots
+
+        Contract operation: api2.list-priority-job-slots.
+        """
+        return await self.request.get('/queues/job_slots', params=params)
+
+    async def list_template_credential_types(self, params=None):
+        """
+        Retrieve Template Credential types
+
+        Contract operation: api2.list-template-credential-types.
+        """
+        return await self.request.get('/template_credentials/types', params=params)
+
+    async def list_template_credentials(self, params=None):
+        """
+        Retrieve list of Template Credentials
+
+        Contract operation: api2.list-template-credentials.
+        """
+        return await self.request.get('/template_credentials', params=params)
+
+    async def list_templates(self, params=None):
+        """
+        Retrieve list of Templates
+
+        Contract operation: api2.list-templates.
+        """
+        return await self.request.get('/templates', params=params)
+
+    async def move_dam_asset(self, asset_id: str, data=None):
+        """
+        Move or rename a DAM asset
+
+        Contract operation: api2.move-dam-asset.
+        Stage: alpha; this API may change.
+        """
+        asset_id = require_path_id(asset_id, 'asset_id')
+        return await self.request.patch(f'/dam/assets/{self._quote_path_segment(asset_id)}', data=data)
+
+    async def move_dam_entry(self, data=None):
+        """
+        Move a Storage file or folder
+
+        Contract operation: api2.move-dam-entry.
+        Stage: alpha; this API may change.
+        """
+        return await self.request.post('/dam/entries/move', data=data)
+
+    async def priority_job_slot_stats(self, params=None):
+        """
+        Retrieve priority job slot statistics
+
+        Contract operation: api2.priority-job-slot-stats.
+        """
+        return await self.request.get('/priority_job_slot_stats', params=params)
+
+    async def replace_assembly(self, assembly_id: str, data=None, extra_data=None, files=None):
+        """
+        Create an Assembly with a supplied ID
+
+        Contract operation: api2.replace-assembly.
+        """
+        assembly_id = require_path_id(assembly_id, 'assembly_id')
+        return await self.request.put(f'/assemblies/{self._quote_path_segment(assembly_id)}', data=data, extra_data=extra_data, files=files)
+
+    async def replay_assembly(self, assembly_id: str, data=None):
+        """
+        Replay an Assembly
+
+        Contract operation: api2.replay-assembly.
+        """
+        assembly_id = require_path_id(assembly_id, 'assembly_id')
+        return await self.request.post(f'/assemblies/{self._quote_path_segment(assembly_id)}/replay', data=data)
+
+    async def replay_assembly_notification(self, assembly_id: str, data=None):
+        """
+        Replay Assembly Notification
+
+        Contract operation: api2.replay-assembly-notification.
+        """
+        assembly_id = require_path_id(assembly_id, 'assembly_id')
+        return await self.request.post(f'/assembly_notifications/{self._quote_path_segment(assembly_id)}/replay', data=data)
+
+    async def show_auth_key_secret(self, auth_key_id: str, data=None):
+        """
+        Retrieve an Auth Key secret
+
+        Contract operation: api2.show-auth-key-secret.
+        """
+        auth_key_id = require_path_id(auth_key_id, 'auth_key_id')
+        return await self.request.post(f'/auth_keys/show_secret/{self._quote_path_segment(auth_key_id)}', data=data)
+
+    def stream_assembly_status(self, stream_url, *, read_timeout=120, max_event_size=1048576):
+        """
+        Stream Assembly changes live
+
+        Contract operation: api2.stream-assembly-status.
+        Use with a context manager. Terminal events do not imply Assembly success.
+        """
+        return self.request.stream_status(stream_url, read_timeout=read_timeout, max_event_size=max_event_size)
+
+    async def update_auth_key(self, auth_key_id: str, data=None):
+        """
+        Edit an Auth Key
+
+        Contract operation: api2.update-auth-key.
+        """
+        auth_key_id = require_path_id(auth_key_id, 'auth_key_id')
+        return await self.request.put(f'/auth_keys/{self._quote_path_segment(auth_key_id)}', data=data)
+
+    async def update_template(self, template_id: str, data=None):
+        """
+        Edit a Template
+
+        Contract operation: api2.update-template.
+        """
+        template_id = require_path_id(template_id, 'template_id')
+        return await self.request.put(f'/templates/{self._quote_path_segment(template_id)}', data=data)
+
+    async def update_template_credentials(self, identifier: str, data=None):
+        """
+        Edit a Template Credential
+
+        Contract operation: api2.update-template-credential.
+        """
+        identifier = require_path_id(identifier, 'identifier')
+        return await self.request.put(f'/template_credentials/{self._quote_path_segment(identifier)}', data=data)
+
+    async def create_upload(self, assembly, headers=None, body=None):
+        """
+        Create a tus upload
+
+        Contract operation: tusd.create-upload.
+        Pass protocol headers using headers; binary downloads return bytes.
+        """
+        return await self.request.tus('tusd.create-upload', assembly, headers=headers, body=body)
+
+    async def delete_upload(self, upload_url, headers=None):
+        """
+        Terminate a tus upload
+
+        Contract operation: tusd.delete-upload.
+        Pass protocol headers using headers; binary downloads return bytes.
+        """
+        return await self.request.tus('tusd.delete-upload', upload_url, headers=headers, body=None)
+
+    async def download_upload(self, upload_url, headers=None):
+        """
+        Download a tus upload
+
+        Contract operation: tusd.download-upload.
+        Pass protocol headers using headers; binary downloads return bytes.
+        """
+        return await self.request.tus('tusd.download-upload', upload_url, headers=headers, body=None)
+
+    async def get_upload_offset(self, upload_url, headers=None):
+        """
+        Retrieve a tus upload offset
+
+        Contract operation: tusd.get-upload-offset.
+        Pass protocol headers using headers; binary downloads return bytes.
+        """
+        return await self.request.tus('tusd.get-upload-offset', upload_url, headers=headers, body=None)
+
+    async def tus_options(self, assembly, headers=None):
+        """
+        Discover tus capabilities
+
+        Contract operation: tusd.options.
+        Pass protocol headers using headers; binary downloads return bytes.
+        """
+        return await self.request.tus('tusd.options', assembly, headers=headers, body=None)
+
+    async def patch_upload(self, upload_url, headers=None, body=None):
+        """
+        Upload tus file bytes
+
+        Contract operation: tusd.patch-upload.
+        Pass protocol headers using headers; binary downloads return bytes.
+        """
+        return await self.request.tus('tusd.patch-upload', upload_url, headers=headers, body=body)
     # </api2-generated-endpoints>
 
-    # <api2-generated-features>
-    # This block is generated from Transloadit API2 contracts. If it looks wrong,
-    # please report the issue instead of editing this block by hand; the source fix
-    # belongs in the contract generator so all SDKs stay in sync.
+    # High-level upload/resume workflows are maintained by hand.
 
     async def create_tus_assembly(self, file_count: int):
         """
@@ -401,125 +582,36 @@ class AsyncTransloadit:
         return assembly
 
     async def resume_tus_upload(self, upload_url: str, content: bytes, assembly_ssl_url: str):
-        """
-        Resumes an interrupted TUS upload from the server-reported offset and waits for the Assembly to finish.
-        """
-        stored_upload_url = upload_url
-        if not stored_upload_url:
-            raise RuntimeError("TUS resumeUpload needs input.storedUploadUrl")
-
-        session = await self.request._ensure_session()
-
-        offset_headers = {}
-        offset_headers["Tus-Resumable"] = "1.0.0"
-        async with session.request(
-            "HEAD",
-            stored_upload_url,
-            data=b"",
-            headers=offset_headers,
-            timeout=self.request._timeout(),
-        ) as offset_response:
-            if offset_response.status != 200:
-                raise RuntimeError(f"TUS offset returned HTTP {offset_response.status}, expected 200")
-            resume_offset_header = offset_response.headers.get("Upload-Offset")
-            if not resume_offset_header:
-                raise RuntimeError("TUS offset did not return a Upload-Offset header")
-            try:
-                resume_offset = int(resume_offset_header)
-            except ValueError as error:
-                raise RuntimeError("TUS offset returned an invalid Upload-Offset header") from error
-
-        upload_headers = {}
-        upload_headers["Tus-Resumable"] = "1.0.0"
-        upload_headers["Upload-Offset"] = str(resume_offset)
-        upload_headers["Content-Type"] = "application/offset+octet-stream"
-        async with session.request(
-            "PATCH",
-            stored_upload_url,
-            data=content[resume_offset:],
-            headers=upload_headers,
-            timeout=self.request._timeout(),
-        ) as upload_response:
-            if upload_response.status != 204:
-                raise RuntimeError(f"TUS upload returned HTTP {upload_response.status}, expected 204")
-            try:
-                upload_offset = int(upload_response.headers.get("Upload-Offset", ""))
-            except ValueError as error:
-                raise RuntimeError("TUS upload returned an invalid Upload-Offset header") from error
-            if upload_offset != len(content):
-                raise RuntimeError(f"TUS upload offset {upload_offset}, expected {len(content)}")
-
-        completed_assembly = await self.wait_for_assembly(assembly_ssl_url)
-
-        return completed_assembly
+        """Resume from the reported offset, then poll the Assembly to completion."""
+        offset_response = await self.get_upload_offset(upload_url)
+        if offset_response.status_code != 200:
+            raise RuntimeError(f"TUS offset returned HTTP {offset_response.status_code}")
+        try:
+            offset = int(offset_response.headers.get("Upload-Offset", ""))
+        except ValueError:
+            raise RuntimeError("TUS offset is not an integer.") from None
+        if not 0 <= offset <= len(content):
+            raise RuntimeError("TUS offset is outside the supplied content.")
+        response = await self.patch_upload(upload_url, headers={"Upload-Offset": str(offset)}, body=content[offset:])
+        if response.status_code != 204 or response.headers.get("Upload-Offset") != str(len(content)):
+            raise RuntimeError("TUS resume did not acknowledge the complete content.")
+        return await self.wait_for_assembly(assembly_ssl_url)
 
     async def upload_tus_assembly(self, content: bytes, fieldname: str, filename: str, user_meta: Optional[dict] = None):
-        """
-        Creates a TUS-ready Assembly, uploads one file with the TUS protocol, and waits for the Assembly to finish.
-        """
-        created_assembly = await self.create_tus_assembly(1)
-
-        endpoint_url = created_assembly.data.get("tus_url")
-        if not endpoint_url:
-            raise RuntimeError("TUS singleUploadLifecycle needs input.endpointUrl")
-
-        metadata_map = {}
-        if user_meta:
-            metadata_map.update({str(key): str(value) for key, value in user_meta.items()})
-        metadata_map["assembly_url"] = str(created_assembly.data.get("assembly_ssl_url"))
-        metadata_map["fieldname"] = str(fieldname)
-        metadata_map["filename"] = str(filename)
-
-        session = await self.request._ensure_session()
-
-        create_headers = {}
-        create_headers["Tus-Resumable"] = "1.0.0"
-        create_headers["Upload-Length"] = str(len(content))
-        create_metadata_parts = []
-        for key, value in metadata_map.items():
-            encoded_value = base64.b64encode(str(value).encode("utf-8")).decode("ascii")
-            create_metadata_parts.append(f"{key} {encoded_value}")
-        create_headers["Upload-Metadata"] = ",".join(create_metadata_parts)
-        async with session.request(
-            "POST",
-            endpoint_url,
-            data=b"",
-            headers=create_headers,
-            timeout=self.request._timeout(),
-        ) as create_response:
-            if create_response.status != 201:
-                raise RuntimeError(f"TUS create returned HTTP {create_response.status}, expected 201")
-            upload_url_location = create_response.headers.get("Location")
-            if not upload_url_location:
-                raise RuntimeError("TUS create did not return a Location header")
-            upload_url_text = urljoin(endpoint_url, upload_url_location)
-
-        upload_headers = {}
-        upload_headers["Tus-Resumable"] = "1.0.0"
-        upload_headers["Upload-Offset"] = "0"
-        upload_headers["Content-Type"] = "application/offset+octet-stream"
-        async with session.request(
-            "PATCH",
-            upload_url_text,
-            data=content,
-            headers=upload_headers,
-            timeout=self.request._timeout(),
-        ) as upload_response:
-            if upload_response.status != 204:
-                raise RuntimeError(f"TUS upload returned HTTP {upload_response.status}, expected 204")
-            try:
-                upload_offset = int(upload_response.headers.get("Upload-Offset", ""))
-            except ValueError as error:
-                raise RuntimeError("TUS upload returned an invalid Upload-Offset header") from error
-            if upload_offset != len(content):
-                raise RuntimeError(f"TUS upload offset {upload_offset}, expected {len(content)}")
-
-        created_assembly_assembly_ssl_url = created_assembly.data.get("assembly_ssl_url")
-        if not created_assembly_assembly_ssl_url:
-            raise RuntimeError("uploadTusAssembly needs createdAssembly.assembly_ssl_url")
-        completed_assembly = await self.wait_for_assembly(created_assembly_assembly_ssl_url)
-
-        return completed_assembly, upload_url_text
+        """Create an Assembly, upload one file using TUS, and wait for completion."""
+        assembly = await self.create_tus_assembly(1)
+        metadata = {str(key): str(value) for key, value in (user_meta or {}).items()}
+        metadata.update({"fieldname": fieldname, "filename": filename})
+        encoded = ",".join(key + " " + base64.b64encode(str(value).encode()).decode("ascii")
+                           for key, value in metadata.items())
+        created = await self.create_upload(assembly, headers={"Upload-Length": str(len(content)), "Upload-Metadata": encoded})
+        if created.status_code != 201:
+            raise RuntimeError(f"TUS creation returned HTTP {created.status_code}")
+        response = await self.patch_upload(created.upload_url, headers={"Upload-Offset": "0"}, body=content)
+        if response.status_code != 204 or response.headers.get("Upload-Offset") != str(len(content)):
+            raise RuntimeError("TUS upload did not acknowledge the complete content.")
+        completed = await self.wait_for_assembly(assembly.data["assembly_ssl_url"])
+        return completed, created.upload_url
 
     async def wait_for_assembly(self, assembly_url: str):
         """
@@ -543,7 +635,6 @@ class AsyncTransloadit:
 
             await asyncio.sleep(1)
 
-    # </api2-generated-features>
 
     def new_template(self, name: str, params: Optional[dict] = None) -> async_template.AsyncTemplate:
         """

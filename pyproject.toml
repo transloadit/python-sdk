@@ -36,6 +36,11 @@ Repository = "https://github.com/transloadit/python-sdk"
 Documentation = "https://transloadit.readthedocs.io"
 
 [tool.poetry]
+include = [
+    { path = "contracts", format = "sdist" },
+    { path = "scripts/generate_endpoints.py", format = "sdist" },
+    { path = "docs/api-coverage.md", format = "sdist" },
+]
 packages = [
     { include = "transloadit" },
 ]

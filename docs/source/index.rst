@@ -64,7 +64,7 @@ application pins or constraints and regenerate your application lockfile.
     python -m pip install --upgrade 'pytransloadit>=2,<3'
 
 The synchronous client API and imports remain compatible with 1.0.4 on supported
-interpreters. Python 2.0 adds the separate ``AsyncTransloadit`` client for asyncio
+interpreters. SDK 2.0 adds the separate ``AsyncTransloadit`` client for asyncio
 applications. The dependency refresh shipped in 1.0.4 does not require upgrading
 to 2.0.
 
@@ -91,19 +91,59 @@ Async usage
 
 .. code:: python
 
+    import asyncio
+    import os
     from transloadit.async_client import AsyncTransloadit
 
-    async with AsyncTransloadit('TRANSLOADIT_KEY', 'TRANSLOADIT_SECRET') as tl:
-        response = await tl.get_assembly(assembly_id='abc')
-        print(response.data['ok'])
+    async def main():
+        async with AsyncTransloadit(os.environ['TRANSLOADIT_KEY'], os.environ['TRANSLOADIT_SECRET']) as tl:
+            assembly = tl.new_assembly()
+            assembly.add_step('resize', '/image/resize', {'width': 70, 'height': 70})
+            with open('PATH/TO/FILE.jpg', 'rb') as upload:
+                assembly.add_file(upload)
+                response = await assembly.create(wait=True, resumable=False)
+            print(response.data['ok'])
 
-        assembly = tl.new_assembly()
-        assembly.add_step('resize', '/image/resize', {'width': 70, 'height': 70})
-        with open('PATH/TO/FILE.jpg', 'rb') as upload:
-            assembly.add_file(upload)
-            response = await assembly.create(wait=True, resumable=False)
+    asyncio.run(main())
 
 If you do not use ``async with``, call ``await tl.aclose()`` when you are done with the session.
+Resumable uploads through tuspy run in a worker thread; polling uses ``asyncio.sleep``.
+
+Endpoint coverage
+-----------------
+
+Both clients implement all 44 documented operations: 38 API2 endpoints plus six
+raw TUS operations. See the `coverage table`_ for methods, HTTP routes, alpha
+stages and the pinned contract generation/check procedure. The 16 separate-product
+storage/device/OAuth routes are tracked for 2.1 in `issue 60`_.
+
+GET methods accept normalized API fields in ``params``; other ordinary methods
+accept ``data``. Creation and replacement of Assemblies also accept ``extra_data``
+and ``files``. Requests are signed by default; pass ``bearer_token`` to use an
+existing token. ``issue_bearer_token`` also supports authorization-code and refresh
+flows. Automatic refresh is not performed.
+
+``stream_assembly_status`` takes the returned ``update_stream_url`` and is used
+with ``with`` / ``async with``. Iterate its events with ``for`` / ``async for``;
+the context closes the connection on exit or cancellation. Unknown events remain
+available to callers. Terminal events and disconnects do not imply success:
+fetch the final Assembly Status and inspect ``ok`` / ``error``. HTTP failures
+raise ``transloadit.stream.StreamError``. Read inactivity defaults to 120 seconds
+and event size to 1 MiB, adjustable through ``read_timeout`` / ``max_event_size``.
+There is no automatic reconnect or replay.
+
+For raw TUS, pass the Assembly response to ``tus_options`` / ``create_upload``.
+Creation pairs ``tus_url`` and ``assembly_ssl_url`` and returns a validated
+``upload_url`` alongside the response. Persist that URL for offset queries,
+append, download and deletion. Pass protocol headers with ``headers`` and upload
+bytes with ``body``. Include base64-encoded ``filename`` / ``fieldname`` entries in
+``Upload-Metadata`` when creating uploads. The client adds the Assembly metadata.
+Downloads always return bytes. Raw methods return HTTP errors
+as Response objects; inspect their status. Existing high-level upload helpers
+still manage normal uploads and polling.
+
+.. _coverage table: https://github.com/transloadit/python-sdk/blob/asyncio-v2/docs/api-coverage.md
+.. _issue 60: https://github.com/transloadit/python-sdk/issues/60
 
 Examples
 --------

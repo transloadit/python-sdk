@@ -42,3 +42,7 @@
 *.woff2 filter=lfs diff=lfs merge=lfs -text
 *.xlsx filter=lfs diff=lfs merge=lfs -text
 *.zip filter=lfs diff=lfs merge=lfs -text
+/transloadit/client.py text eol=lf
+/transloadit/async_client.py text eol=lf
+/transloadit/_contract.py text eol=lf
+/docs/api-coverage.md text eol=lf

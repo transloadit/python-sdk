@@ -252,7 +252,6 @@ class ClientTest(unittest.TestCase):
                             {"type": "dropbox"}
                         )
                         self.transloadit.create_template_credentials(credential_data)
-                        self.transloadit.list_assembly_notifications("assembly/with?chars")
                         self.transloadit.get_builtin_template("builtin/with?chars")
                         self.transloadit.get_template_full("template/with?chars")
                         self.transloadit.get_builtin_template_full("builtin/full?chars")
@@ -293,7 +292,6 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(
             get_mock.call_args_list,
             [
-                mock.call("/assembly_notifications/assembly%2Fwith%3Fchars"),
                 mock.call("/templates/builtin/builtin%2Fwith%3Fchars", params=None),
                 mock.call("/templates/template%2Fwith%3Fchars/full", params=None),
                 mock.call("/templates/builtin/builtin%2Ffull%3Fchars/full", params=None),

@@ -34,7 +34,7 @@ python -m pip install --upgrade 'pytransloadit>=2,<3'
 ```
 
 The synchronous client API and imports remain compatible with 1.0.4 on supported
-interpreters. Python 2.0 adds the separate `AsyncTransloadit` client for asyncio
+interpreters. SDK 2.0 adds the separate `AsyncTransloadit` client for asyncio
 applications. The dependency refresh shipped in 1.0.4 does not require upgrading
 to 2.0.
 
@@ -58,22 +58,73 @@ print(assembly_response.data['assembly_id'])
 ## Async usage
 
 ```python
+import asyncio
+import os
 from transloadit.async_client import AsyncTransloadit
 
-async with AsyncTransloadit("TRANSLOADIT_KEY", "TRANSLOADIT_SECRET") as tl:
-    response = await tl.get_assembly(assembly_id="abc")
-    print(response.data["ok"])
+async def main():
+    async with AsyncTransloadit(os.environ["TRANSLOADIT_KEY"], os.environ["TRANSLOADIT_SECRET"]) as tl:
+        assembly = tl.new_assembly()
+        assembly.add_step("resize", "/image/resize", {"width": 70, "height": 70})
+        with open("PATH/TO/FILE.jpg", "rb") as upload:
+            assembly.add_file(upload)
+            response = await assembly.create(wait=True, resumable=False)
+        print(response.data["ok"])
 
-    assembly = tl.new_assembly()
-    assembly.add_step("resize", "/image/resize", {"width": 70, "height": 70})
-    with open("PATH/TO/FILE.jpg", "rb") as upload:
-        assembly.add_file(upload)
-        response = await assembly.create(wait=True, resumable=False)
+asyncio.run(main())
 ```
 
 The async client keeps polling on `asyncio.sleep`. Resumable uploads still use the existing TUS client, but are offloaded with `asyncio.to_thread()` so the event loop stays responsive.
 
 If you do not use `async with`, call `await tl.aclose()` when you are done with the session.
+
+## API endpoint coverage
+
+Both clients expose all **44 documented API operations**: Assemblies and SSE,
+Templates, Template Credentials, auth keys and token issuance, DAM, statistics,
+Billing, job slots, Assembly Notifications, and the six raw TUS operations.
+See the [complete coverage table and generation instructions](docs/api-coverage.md).
+The five DAM operations marked alpha retain that status. The 16 separate-product
+routes deferred to 2.1 are tracked in [#60](https://github.com/transloadit/python-sdk/issues/60).
+
+Ordinary GET methods take `params`, and other methods take `data`, as dictionaries
+of the API's normalized request fields. Responses expose `.data`, `.status_code`
+and `.headers`. For example, `await tl.list_auth_keys()` retrieves auth keys.
+Check the endpoint reference for field names and required scopes. Signed requests
+remain the default. To use a bearer token, pass
+`bearer_token=token` to either client (the Auth Secret can be `None`).
+`issue_bearer_token(data)` supports the contract's client-credentials,
+authorization-code and refresh-token grants; omitted `grant_type` keeps the
+client-credentials default. Tokens are not refreshed automatically.
+
+SSE uses the returned Assembly `update_stream_url` and a context manager:
+
+```python
+# Inside an async function, after creating an Assembly:
+async with tl.stream_assembly_status(created.data["update_stream_url"]) as events:
+    async for event in events:
+        print(event.event, event.data)
+```
+
+The sync equivalent uses `with` and `for`. Each event has `event`, parsed `data`,
+`id`, `retry` and `terminal` attributes. Unknown events are delivered unchanged.
+The stream stops on a terminal event; exiting the context, including cancellation,
+closes the connection. A terminal event or disconnect does **not** establish
+processing success: fetch `assembly_ssl_url` and inspect `ok`/`error`.
+HTTP errors raise `transloadit.stream.StreamError` with `status_code`; streams
+do not reconnect or replay automatically. Read inactivity defaults to 120 seconds,
+and events are capped at 1 MiB; use `read_timeout` and `max_event_size` to adjust.
+
+For low-level resumable control, `tus_options(assembly)` and
+`create_upload(assembly, headers=..., body=...)` take the Assembly response, pairing
+its `tus_url` with `assembly_ssl_url`. Successful creation exposes a validated
+`.upload_url`, suitable for persisting and passing to `get_upload_offset`,
+`patch_upload`, `download_upload` or `delete_upload`. Supply TUS fields such as
+`Upload-Length` and `Upload-Offset` through `headers`, and supply base64-encoded
+`filename` / `fieldname` entries in `Upload-Metadata` when creating uploads; the
+client adds protocol defaults and the Assembly metadata. Downloads return bytes, including JSON-looking
+files. These raw methods return HTTP errors as `Response` objects; inspect status
+codes. The high-level Assembly/tuspy helpers still handle normal uploads and polling.
 
 ## Examples
 
