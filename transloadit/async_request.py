@@ -6,6 +6,7 @@ import io
 import json
 import mimetypes
 import os
+import threading
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from types import MappingProxyType
@@ -15,10 +16,10 @@ from requests.structures import CaseInsensitiveDict
 
 from . import __version__
 from .api_url import should_sign_api_url
-from .endpoint_transport import capability_url, token_request, tus_request, validate_upload_location
+from .endpoint_transport import async_network_options, capability_url, token_request, tus_request, validate_upload_location
 from .response import Response
 from .stream import EventParser, StreamError
-from .upload import get_upload_filename
+from .upload import get_upload_filename, wait_for_upload_worker
 
 TIMEOUT = 60
 
@@ -26,6 +27,23 @@ TIMEOUT = 60
 class _NonClosingUploadStream(io.IOBase):
     def __init__(self, file_stream):
         self._file_stream = file_stream
+        self._lock = threading.Lock()
+        self._retired = threading.Event()
+
+    def _call(self, method, *args):
+        with self._lock:
+            if self._retired.is_set():
+                raise ValueError("Upload stream is no longer active.")
+            return getattr(self._file_stream, method)(*args)
+
+    def retire(self):
+        # Prevent queued executor reads from touching the caller's file later.
+        self._retired.set()
+
+    def drain(self):
+        # An in-flight blocking read holds this lock until it releases the file.
+        with self._lock:
+            pass
 
     @property
     def name(self):
@@ -35,40 +53,40 @@ class _NonClosingUploadStream(io.IOBase):
         pass
 
     def fileno(self):
-        return self._file_stream.fileno()
+        return self._call("fileno")
 
     def read(self, *args):
-        return self._file_stream.read(*args)
+        return self._call("read", *args)
 
     def readable(self):
         readable = getattr(self._file_stream, "readable", None)
         if callable(readable):
             try:
-                return readable()
+                return self._call("readable")
             except (OSError, ValueError):
                 return False
         return hasattr(self._file_stream, "read")
 
     def readline(self, *args):
-        return self._file_stream.readline(*args)
+        return self._call("readline", *args)
 
     def readlines(self, *args):
-        return self._file_stream.readlines(*args)
+        return self._call("readlines", *args)
 
     def seek(self, *args):
-        return self._file_stream.seek(*args)
+        return self._call("seek", *args)
 
     def seekable(self):
         seekable = getattr(self._file_stream, "seekable", None)
         if callable(seekable):
             try:
-                return seekable()
+                return self._call("seekable")
             except (OSError, ValueError):
                 return False
         return hasattr(self._file_stream, "seek")
 
     def tell(self):
-        return self._file_stream.tell()
+        return self._call("tell")
 
 
 class AsyncRequest:
@@ -181,17 +199,20 @@ class AsyncRequest:
         if extra_data:
             data.update(extra_data)
 
+        uploads = []
         if files:
             form = aiohttp.FormData()
             for key, value in self._normalize_payload(data):
                 form.add_field(key, value)
 
             for key, file_stream in files.items():
+                upload = _NonClosingUploadStream(file_stream)
+                uploads.append(upload)
                 filename = get_upload_filename(file_stream, key)
                 content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
                 form.add_field(
                     key,
-                    _NonClosingUploadStream(file_stream),
+                    upload,
                     filename=filename,
                     content_type=content_type,
                 )
@@ -199,18 +220,27 @@ class AsyncRequest:
         else:
             payload = self._normalize_payload(data)
 
-        async with getattr(session, method)(
-            url,
-            data=payload,
-            headers=self._headers(url),
-            timeout=self._timeout(),
-            allow_redirects=False,
-        ) as response:
-            return Response(
-                data=await self._read_response_data(response),
-                status_code=response.status,
-                headers=CaseInsensitiveDict(response.headers),
-            )
+        try:
+            async with getattr(session, method)(
+                url,
+                data=payload,
+                headers=self._headers(url),
+                timeout=self._timeout(),
+                allow_redirects=False,
+            ) as response:
+                return Response(
+                    data=await self._read_response_data(response),
+                    status_code=response.status,
+                    headers=CaseInsensitiveDict(response.headers),
+                )
+        finally:
+            if uploads:
+                for upload in uploads:
+                    upload.retire()
+                def drain():
+                    for upload in uploads:
+                        upload.drain()
+                await wait_for_upload_worker(asyncio.create_task(asyncio.to_thread(drain)))
 
     async def put(self, path, data=None, extra_data=None, files=None):
         """
@@ -273,30 +303,42 @@ class AsyncRequest:
             return url
         return self.transloadit.service + url
 
+    @asynccontextmanager
+    async def _isolated_session(self):
+        # Share DNS/TLS/pool configuration, never the session's cookies or auth.
+        connector = getattr(self._session, "connector", None)
+        if self._session is not None and self._session.closed and not self._owns_session:
+            raise RuntimeError("Injected aiohttp session is closed.")
+        async with aiohttp.ClientSession(connector=connector, connector_owner=connector is None,
+                                         cookie_jar=aiohttp.DummyCookieJar(), trust_env=False) as session:
+            yield session
+
     async def public(self, method, path, params=None, data=None):
         # A separate session prevents injected session cookies/auth from leaking
         # onto credential-free capability and public endpoints.
-        async with aiohttp.ClientSession(trust_env=False) as session:
-            async with session.request(method, self._get_full_url(path), params=params, data=data,
-                                       headers=self._headers(), timeout=self._timeout(), allow_redirects=False) as response:
+        url = self._get_full_url(path)
+        async with self._isolated_session() as session:
+            async with session.request(method, url, params=params, data=data,
+                                       headers=self._headers(), timeout=self._timeout(), allow_redirects=False,
+                                       **async_network_options(url)) as response:
                 return Response(data=await self._read_response_data(response), status_code=response.status,
                                 headers=CaseInsensitiveDict(response.headers))
 
     async def issue_bearer_token(self, data=None):
         url, data, headers = token_request(self.transloadit, data)
         headers.update(self._headers())
-        async with aiohttp.ClientSession(trust_env=False) as session:
+        async with self._isolated_session() as session:
             async with session.post(url, data=self._normalize_payload(data), headers=headers,
-                                    timeout=self._timeout(), allow_redirects=False) as response:
+                                    timeout=self._timeout(), allow_redirects=False, **async_network_options(url)) as response:
                 return Response(data=await self._read_response_data(response), status_code=response.status,
                                 headers=CaseInsensitiveDict(response.headers))
 
     async def tus(self, operation_id, location, headers=None, body=None):
         spec, url, headers, body = tus_request(self.transloadit, operation_id, location, headers, body)
         headers.update(self._headers())
-        async with aiohttp.ClientSession(trust_env=False) as session:
+        async with self._isolated_session() as session:
             async with session.request(spec["method"], url, data=body, headers=headers,
-                                       timeout=self._timeout(), allow_redirects=False) as raw:
+                                       timeout=self._timeout(), allow_redirects=False, **async_network_options(url)) as raw:
                 data = await raw.read() if spec["binary_response"] else await self._read_response_data(raw)
                 response = Response(data=data, status_code=raw.status, headers=CaseInsensitiveDict(raw.headers))
         if spec["method"] == "POST":
@@ -308,15 +350,17 @@ class AsyncRequest:
         url = capability_url(self.transloadit, url, "status-stream")
         parser = EventParser(max_event_size)
         timeout = aiohttp.ClientTimeout(total=None, sock_connect=TIMEOUT, sock_read=read_timeout)
-        async with aiohttp.ClientSession(trust_env=False) as session:
+        async with self._isolated_session() as session:
             async with session.get(url, headers={**self._headers(), "Accept": "text/event-stream"},
-                                   timeout=timeout, allow_redirects=False) as response:
+                                   timeout=timeout, allow_redirects=False, **async_network_options(url)) as response:
                 if response.status != 200:
                     raise StreamError(response.status)
                 if response.headers.get("Content-Type", "").split(";", 1)[0].lower() != "text/event-stream":
                     raise StreamError(response.status, "Expected text/event-stream")
 
                 async def events():
+                    # EOF is not Assembly success; callers inspect the final status.
+                    # Keep aiohttp exception types for existing retry policies.
                     async for chunk in response.content.iter_any():
                         for event in parser.feed(chunk):
                             yield event

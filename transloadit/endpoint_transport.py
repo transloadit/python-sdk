@@ -1,14 +1,27 @@
 """Shared wire preparation for OAuth, SSE and raw TUS endpoints."""
 import base64
 import copy
+import os
 from ipaddress import ip_address
 import re
 from urllib.parse import parse_qs, unquote, urljoin, urlsplit
 
 from requests.structures import CaseInsensitiveDict
+from requests.utils import get_environ_proxies
 
 from ._contract import CONTRACT
 from .response import Response
+
+
+def sync_network_options(url):
+    """Honor transport configuration without enabling ambient netrc auth."""
+    return {"proxies": get_environ_proxies(url),
+            "verify": os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("CURL_CA_BUNDLE") or True}
+
+
+def async_network_options(url):
+    proxies = get_environ_proxies(url)
+    return {"proxy": proxies.get(urlsplit(url).scheme) or proxies.get("all")}
 
 
 def token_request(client, data):
@@ -121,6 +134,8 @@ def tus_request(client, operation_id, location, headers, body):
     supplied = CaseInsensitiveDict(headers or {})
     if any(name.lower() in {"authorization", "proxy-authorization", "cookie", "host"} for name in supplied):
         raise ValueError("Account credentials and Host overrides are not TUS headers.")
+    if any(name.lower() in CONTRACT["capability"]["unsupportedHeaders"] for name in supplied):
+        raise ValueError("Unsupported TUS header in the API2 contract.")
     outgoing = CaseInsensitiveDict(spec["defaults"])
     outgoing.update(supplied)
     if spec["destination"] == "tus-collection":

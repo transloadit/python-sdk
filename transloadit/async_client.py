@@ -1,10 +1,10 @@
 import asyncio
-import base64
 from typing import Optional
 from urllib.parse import quote
 
 from . import async_assembly, async_request, async_template
 from .api_url import normalize_service_url, require_path_id
+from .upload import check_assembly_created, encode_upload_metadata
 from .smart_cdn import URL_PARAM_VALUES, build_signed_smart_cdn_url
 
 
@@ -599,11 +599,9 @@ class AsyncTransloadit:
 
     async def upload_tus_assembly(self, content: bytes, fieldname: str, filename: str, user_meta: Optional[dict] = None):
         """Create an Assembly, upload one file using TUS, and wait for completion."""
+        encoded = encode_upload_metadata(fieldname, filename, user_meta)
         assembly = await self.create_tus_assembly(1)
-        metadata = {str(key): str(value) for key, value in (user_meta or {}).items()}
-        metadata.update({"fieldname": fieldname, "filename": filename})
-        encoded = ",".join(key + " " + base64.b64encode(str(value).encode()).decode("ascii")
-                           for key, value in metadata.items())
+        check_assembly_created(assembly)
         created = await self.create_upload(assembly, headers={"Upload-Length": str(len(content)), "Upload-Metadata": encoded})
         if created.status_code != 201:
             raise RuntimeError(f"TUS creation returned HTTP {created.status_code}")
@@ -613,11 +611,16 @@ class AsyncTransloadit:
         completed = await self.wait_for_assembly(assembly.data["assembly_ssl_url"])
         return completed, created.upload_url
 
-    async def wait_for_assembly(self, assembly_url: str):
+    async def wait_for_assembly(self, assembly_url: str, *, retries=3):
         """
         Waits for an Assembly to finish uploading and executing.
         Use the returned assembly_ssl_url as the assembly URL.
+        Retry consecutive rate limits up to retries times, honoring info.retryIn.
         """
+        if not isinstance(retries, int) or retries < 0:
+            raise ValueError("retries must be a non-negative integer.")
+        polling = self.new_assembly()
+        remaining = retries
         while True:
             response = await self.get_assembly(assembly_url=assembly_url)
             data = response.data
@@ -625,7 +628,13 @@ class AsyncTransloadit:
             if not isinstance(data, dict):
                 raise RuntimeError(f"Unexpected non-JSON response ({response.status_code}).")
 
-            # Abort polling if the assembly has entered an error state
+            if polling._rate_limit_reached(data):
+                if remaining == 0:
+                    return response
+                remaining -= 1
+                await asyncio.sleep(polling._retry_delay(data))
+                continue
+            remaining = retries
             if data.get("error"):
                 return response
 

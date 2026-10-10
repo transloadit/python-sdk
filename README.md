@@ -76,6 +76,11 @@ asyncio.run(main())
 
 The async client keeps polling on `asyncio.sleep`. Resumable uploads still use the existing TUS client, but are offloaded with `asyncio.to_thread()` so the event loop stays responsive.
 
+Cancellation of a resumable upload waits for the tuspy upload batch, including
+retries, to finish before releasing your files. Multipart cancellation waits for
+any active file read. Timeout and shutdown cleanup can therefore exceed the
+requested deadline; keep file context managers open around the awaited call.
+
 If you do not use `async with`, call `await tl.aclose()` when you are done with the session.
 
 ## API endpoint coverage
@@ -97,6 +102,12 @@ remain the default. To use a bearer token, pass
 authorization-code and refresh-token grants; omitted `grant_type` keeps the
 client-credentials default. Tokens are not refreshed automatically.
 
+Public, token, SSE and raw TUS transports honor environment proxies. Sync calls also honor
+`REQUESTS_CA_BUNDLE` / `CURL_CA_BUNDLE`; async transports reuse the DNS/TLS connector
+of an injected aiohttp session. Public, token, SSE and raw TUS calls use isolated
+sessions so injected cookies, default account auth and netrc credentials cannot
+be forwarded accidentally.
+
 SSE uses the returned Assembly `update_stream_url` and a context manager:
 
 ```python
@@ -112,7 +123,9 @@ The stream stops on a terminal event; exiting the context, including cancellatio
 closes the connection. A terminal event or disconnect does **not** establish
 processing success: fetch `assembly_ssl_url` and inspect `ok`/`error`.
 HTTP errors raise `transloadit.stream.StreamError` with `status_code`; streams
-do not reconnect or replay automatically. Read inactivity defaults to 120 seconds,
+do not reconnect or replay automatically. EOF ends iteration even without a
+terminal event, and transport failures retain requests/urllib3 or aiohttp exception
+types. Read inactivity defaults to 120 seconds,
 and events are capped at 1 MiB; use `read_timeout` and `max_event_size` to adjust.
 
 For low-level resumable control, `tus_options(assembly)` and

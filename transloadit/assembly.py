@@ -86,6 +86,8 @@ class Assembly(optionbuilder.OptionBuilder):
                 raise RuntimeError(f"Unable to rewind file stream {key!r}.") from exc
 
     def _do_tus_upload(self, assembly_url, tus_url, retries):
+        # Preserve legacy custom/Gateway upload hosts returned by the configured
+        # service. Contract capability restrictions apply to the raw TUS methods.
         tus_client = tus.TusClient(tus_url)
         for key, file_stream in self.files.items():
             metadata = {

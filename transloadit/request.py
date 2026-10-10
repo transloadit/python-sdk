@@ -9,7 +9,7 @@ import requests
 
 from . import __version__
 from .api_url import should_sign_api_url
-from .endpoint_transport import capability_url, token_request, tus_request, validate_upload_location
+from .endpoint_transport import capability_url, sync_network_options, token_request, tus_request, validate_upload_location
 from .response import Response, as_response
 from .stream import EventParser, StreamError
 
@@ -101,7 +101,7 @@ class Request:
         Return an instance of <transloadit.response.Response>
         """
         url = self._get_full_url(path)
-        data = self._to_request_payload(url, data)
+        data = self._to_request_payload(url, data) or {}
         if extra_data:
             data.update(extra_data)
         return requests.put(
@@ -176,8 +176,9 @@ class Request:
     def public(self, method, path, params=None, data=None):
         with requests.Session() as session:
             session.trust_env = False  # Do not borrow netrc credentials for unsigned endpoints.
-            raw = session.request(method, self._get_full_url(path), params=params, data=data,
-                                  headers=self.HEADERS, timeout=TIMEOUT, allow_redirects=False)
+            url = self._get_full_url(path)
+            raw = session.request(method, url, params=params, data=data,
+                                  headers=self.HEADERS, timeout=TIMEOUT, allow_redirects=False, **sync_network_options(url))
             return Response(raw)
 
     def issue_bearer_token(self, data=None):
@@ -185,7 +186,7 @@ class Request:
         headers.update(self.HEADERS)
         with requests.Session() as session:
             session.trust_env = False
-            return Response(session.post(url, data=data, headers=headers, timeout=TIMEOUT, allow_redirects=False))
+            return Response(session.post(url, data=data, headers=headers, timeout=TIMEOUT, allow_redirects=False, **sync_network_options(url)))
 
     def tus(self, operation_id, location, headers=None, body=None):
         spec, url, headers, body = tus_request(self.transloadit, operation_id, location, headers, body)
@@ -193,7 +194,7 @@ class Request:
         with requests.Session() as session:
             session.trust_env = False
             raw = session.request(spec["method"], url, data=body, headers=headers,
-                                  timeout=TIMEOUT, allow_redirects=False)
+                                  timeout=TIMEOUT, allow_redirects=False, **sync_network_options(url))
             response = Response(raw, data=raw.content) if spec["binary_response"] else Response(raw)
         if spec["method"] == "POST":
             validate_upload_location(self.transloadit, url, response)
@@ -206,13 +207,16 @@ class Request:
         with requests.Session() as session:
             session.trust_env = False
             with session.get(url, headers={**self.HEADERS, "Accept": "text/event-stream"},
-                             timeout=(TIMEOUT, read_timeout), stream=True, allow_redirects=False) as response:
+                             timeout=(TIMEOUT, read_timeout), stream=True, allow_redirects=False,
+                             **sync_network_options(url)) as response:
                 if response.status_code != 200:
                     raise StreamError(response.status_code)
                 if response.headers.get("Content-Type", "").split(";", 1)[0].lower() != "text/event-stream":
                     raise StreamError(response.status_code, "Expected text/event-stream")
 
                 def events():
+                    # EOF is not Assembly success; callers inspect the final status.
+                    # Keep transport exception types for existing retry policies.
                     # read1 returns available bytes without waiting to fill a chunk.
                     while chunk := response.raw.read1(65536, decode_content=True):
                         for event in parser.feed(chunk):

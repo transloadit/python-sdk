@@ -42,6 +42,8 @@
 *.woff2 filter=lfs diff=lfs merge=lfs -text
 *.xlsx filter=lfs diff=lfs merge=lfs -text
 *.zip filter=lfs diff=lfs merge=lfs -text
+# Keep the generation input available in ordinary clones and source archives.
+/contracts/*.gz -filter -diff -merge -text
 /transloadit/client.py text eol=lf
 /transloadit/async_client.py text eol=lf
 /transloadit/_contract.py text eol=lf

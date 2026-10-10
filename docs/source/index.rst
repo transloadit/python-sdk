@@ -108,6 +108,10 @@ Async usage
 
 If you do not use ``async with``, call ``await tl.aclose()`` when you are done with the session.
 Resumable uploads through tuspy run in a worker thread; polling uses ``asyncio.sleep``.
+Cancellation waits for that upload batch, including retries, to finish before
+releasing caller-owned files. Multipart cancellation drains active file reads.
+Timeout and shutdown cleanup can therefore exceed the requested deadline; keep
+file context managers open around the awaited call.
 
 Endpoint coverage
 -----------------
@@ -123,6 +127,11 @@ and ``files``. Requests are signed by default; pass ``bearer_token`` to use an
 existing token. ``issue_bearer_token`` also supports authorization-code and refresh
 flows. Automatic refresh is not performed.
 
+Public, token, SSE and raw TUS transports honor environment proxies. Sync calls also honor
+``REQUESTS_CA_BUNDLE`` / ``CURL_CA_BUNDLE``; async calls reuse an injected aiohttp
+session's DNS/TLS connector. Public, token, SSE and raw TUS calls isolate cookies,
+default account auth and netrc credentials.
+
 ``stream_assembly_status`` takes the returned ``update_stream_url`` and is used
 with ``with`` / ``async with``. Iterate its events with ``for`` / ``async for``;
 the context closes the connection on exit or cancellation. Unknown events remain
@@ -131,6 +140,8 @@ fetch the final Assembly Status and inspect ``ok`` / ``error``. HTTP failures
 raise ``transloadit.stream.StreamError``. Read inactivity defaults to 120 seconds
 and event size to 1 MiB, adjustable through ``read_timeout`` / ``max_event_size``.
 There is no automatic reconnect or replay.
+EOF ends iteration even without a terminal event. Network failures retain the
+underlying requests/urllib3 or aiohttp exception types.
 
 For raw TUS, pass the Assembly response to ``tus_options`` / ``create_upload``.
 Creation pairs ``tus_url`` and ``assembly_ssl_url`` and returns a validated

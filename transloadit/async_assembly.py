@@ -4,7 +4,7 @@ import math
 from tusclient import client as tus
 
 from . import optionbuilder
-from .upload import get_upload_filename
+from .upload import get_upload_filename, wait_for_upload_worker
 
 
 class AsyncAssembly(optionbuilder.OptionBuilder):
@@ -63,6 +63,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                 raise RuntimeError(f"Unable to rewind file stream {key!r}.") from exc
 
     def _do_tus_upload(self, assembly_url, tus_url, retries):
+        # Preserve legacy custom/Gateway upload hosts returned by the configured
+        # service. Contract capability restrictions apply to the raw TUS methods.
         tus_client = tus.TusClient(tus_url)
         for key, file_stream in self.files.items():
             filename = get_upload_filename(file_stream, key)
@@ -85,18 +87,16 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         upload_task = asyncio.create_task(
             asyncio.to_thread(self._do_tus_upload, assembly_url, tus_url, retries)
         )
-        try:
-            await asyncio.shield(upload_task)
-        except asyncio.CancelledError:
-            try:
-                await upload_task
-            except Exception:
-                pass
-            raise
+        await wait_for_upload_worker(upload_task)
 
     async def create(self, wait=False, resumable=True, retries=3):
         """
         Save/Submit the assembly for processing.
+
+        Resumable uploads use a tuspy worker thread. Cancellation waits for that
+        upload batch, including retries, to finish before releasing caller-owned
+        files. Consequently, cancellation and timeout cleanup may take longer than
+        the requested deadline. Multipart uploads drain any active file read too.
         """
         data = self.get_options()
         file_positions, missing_file_positions = self._snapshot_file_positions()

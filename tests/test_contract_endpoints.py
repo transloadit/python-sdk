@@ -9,7 +9,9 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import parse_qs
+from unittest import mock
 
+import aiohttp
 from aiohttp import web
 import pytest
 from requests.structures import CaseInsensitiveDict
@@ -43,6 +45,157 @@ def test_move_dam_asset_uses_patch(requests_mock):
     response = Transloadit("key", "secret").move_dam_asset("asset-123", {"filename": "new.jpg"})
     assert endpoint.call_count == 1
     assert response.data["ok"] == "ASSET_MOVED"
+
+
+def test_unsigned_put_can_send_extra_fields(requests_mock):
+    endpoint = requests_mock.put("https://other.example/upload", json={"ok": "OK"})
+    Transloadit("key", "secret").request.put("https://other.example/upload", extra_data={"field": "value"})
+    assert parse_qs(endpoint.last_request.text) == {"field": ["value"]}
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_polling_retries_rate_limits_and_stops_after_retry_budget(mode):
+    async def scenario():
+        cls = Transloadit if mode == "sync" else AsyncTransloadit
+        client = cls("key", "secret")
+        limited = Response(data={"error": "ASSEMBLY_STATUS_FETCHING_RATE_LIMIT_REACHED", "info": {"retryIn": .125}}, status_code=429)
+        completed = Response(data={"ok": "ASSEMBLY_COMPLETED"}, status_code=200)
+        make_mock = mock.Mock if mode == "sync" else mock.AsyncMock
+        sleep_path = "transloadit.client.sleep" if mode == "sync" else "transloadit.async_client.asyncio.sleep"
+        with mock.patch(sleep_path, new_callable=make_mock) as sleep:
+            client.get_assembly = make_mock(side_effect=[limited, completed])
+            result = await call(client, "wait_for_assembly", "https://api2.transloadit.com/assemblies/" + ASSEMBLY_ID)
+            assert result is completed
+            sleep.assert_called_once_with(.125)
+            client.get_assembly = make_mock(return_value=limited)
+            result = await call(client, "wait_for_assembly", "https://api2.transloadit.com/assemblies/" + ASSEMBLY_ID, retries=2)
+            assert result is limited and client.get_assembly.call_count == 3
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_high_level_upload_preserves_assembly_errors(mode):
+    async def scenario():
+        client = (Transloadit if mode == "sync" else AsyncTransloadit)("key", "secret")
+        make_mock = mock.Mock if mode == "sync" else mock.AsyncMock
+        client.create_tus_assembly = make_mock(return_value=Response(data={"error": "INVALID_AUTH_KEY"}, status_code=401))
+        client.create_upload = make_mock()
+        with pytest.raises(RuntimeError, match="INVALID_AUTH_KEY.*401"):
+            await call(client, "upload_tus_assembly", b"file", "file", "file.txt")
+        client.create_upload.assert_not_called()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+@pytest.mark.parametrize("key", ["", "two words", "a,b", "a\r\nb", "caf\u00e9"])
+def test_high_level_upload_rejects_invalid_metadata_before_creating_assembly(mode, key):
+    async def scenario():
+        client = (Transloadit if mode == "sync" else AsyncTransloadit)("key", "secret")
+        client.create_tus_assembly = (mock.Mock if mode == "sync" else mock.AsyncMock)()
+        with pytest.raises(ValueError, match="metadata"):
+            await call(client, "upload_tus_assembly", b"file", "file", "file.txt", user_meta={key: "value"})
+        client.create_tus_assembly.assert_not_called()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("header", ["Upload-Concat", "X-HTTP-Method-Override", "x-method-override"])
+def test_raw_tus_rejects_contract_unsupported_headers(header):
+    client = Transloadit("key", "secret")
+    with pytest.raises(ValueError, match="Unsupported TUS header"):
+        tus_request(client, "tusd.get-upload-offset", "https://api2.transloadit.com/resumable/files/upload", {header: "DELETE"}, None)
+
+
+def test_sync_isolated_transport_preserves_proxy_and_ca_settings(requests_mock, monkeypatch, tmp_path):
+    url = "https://api2.transloadit.com/assembly_notifications"
+    endpoint = requests_mock.get(url, json={"ok": "OK"})
+    monkeypatch.delenv("https_proxy", raising=False)
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.invalid:3128")
+    monkeypatch.delenv("no_proxy", raising=False)
+    monkeypatch.setenv("NO_PROXY", "")
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", "/custom/company-ca.pem")
+    netrc = tmp_path / "netrc"
+    netrc.write_text("machine api2.transloadit.com login ambient password must-not-leak\n")
+    monkeypatch.setenv("NETRC", str(netrc))
+    Transloadit("key", "secret", bearer_token="must-not-leak").request.public("GET", "/assembly_notifications")
+    assert endpoint.last_request.proxies["https"] == "http://proxy.invalid:3128"
+    assert endpoint.last_request.verify == "/custom/company-ca.pem"
+    assert "Authorization" not in endpoint.last_request.headers
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_isolated_transports_use_environment_proxy_without_netrc(mode, monkeypatch, tmp_path):
+    async def scenario():
+        async with wire_client(mode) as (client, server):
+            monkeypatch.delenv("http_proxy", raising=False)
+            monkeypatch.setenv("HTTP_PROXY", server.url)
+            monkeypatch.delenv("no_proxy", raising=False)
+            monkeypatch.setenv("NO_PROXY", "")
+            netrc = tmp_path / "netrc"
+            netrc.write_text("machine 127.0.0.2 login ambient password must-not-leak\n")
+            monkeypatch.setenv("NETRC", str(netrc))
+            # No server listens here: every request must traverse the proxy.
+            client.service = "http://127.0.0.2:1"
+            await call(client, "list_assembly_notifications", ASSEMBLY_ID)
+            await call(client, "issue_bearer_token", {"grant_type": "refresh_token", "refresh_token": "refresh"})
+            assembly = {"assembly_id": ASSEMBLY_ID, "assembly_ssl_url": client.service + "/assemblies/" + ASSEMBLY_ID,
+                        "tus_url": client.service + "/resumable/files"}
+            await call(client, "tus_options", assembly)
+            stream_url = client.service + "/ws1?assembly=" + ASSEMBLY_ID
+            if mode == "sync":
+                def consume():
+                    with client.stream_assembly_status(stream_url) as events:
+                        return list(events)
+                await asyncio.to_thread(consume)
+            else:
+                async with client.stream_assembly_status(stream_url) as events:
+                    assert [event async for event in events][-1].terminal
+            assert len(server.requests) == 4
+            assert all("Authorization" not in request["headers"] for request in server.requests)
+    asyncio.run(scenario())
+
+
+def test_async_isolated_transport_reuses_injected_connector_without_credentials(monkeypatch):
+    monkeypatch.delenv("no_proxy", raising=False)
+    monkeypatch.setenv("NO_PROXY", "sdk.invalid")
+    async def scenario():
+        async with wire_client("async") as (_, server):
+            class Resolver(aiohttp.abc.AbstractResolver):
+                async def resolve(self, host, port=0, family=0):
+                    return [{"hostname": host, "host": "127.0.0.1", "port": port, "family": 2, "proto": 0, "flags": 0}]
+                async def close(self):
+                    pass
+            connector = aiohttp.TCPConnector(resolver=Resolver())
+            async with aiohttp.ClientSession(connector=connector, auth=aiohttp.BasicAuth("ambient", "secret"),
+                                             headers={"Cookie": "session=must-not-leak"}) as session:
+                service = server.url.replace("127.0.0.1", "sdk.invalid")
+                async with AsyncTransloadit("key", "secret", service=service, session=session) as client:
+                    await client.list_assembly_notifications(ASSEMBLY_ID)
+                assert not connector.closed and not session.closed
+                assert "Authorization" not in server.requests[-1]["headers"]
+                assert "Cookie" not in server.requests[-1]["headers"]
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_high_level_raw_tus_upload_and_resume(mode):
+    async def scenario():
+        async with wire_client(mode) as (client, server):
+            assembly_url = server.url + "/assemblies/" + ASSEMBLY_ID
+            created = Response(data={"ok": "ASSEMBLY_UPLOADING", "assembly_id": ASSEMBLY_ID,
+                                     "assembly_ssl_url": assembly_url, "tus_url": server.url + "/resumable/files"},
+                               status_code=200)
+            client.create_tus_assembly = (mock.Mock if mode == "sync" else mock.AsyncMock)(return_value=created)
+            content = b"abcdef"
+            completed, upload_url = await call(client, "upload_tus_assembly", content, "file", "test.txt", {"label": "caf\u00e9"})
+            assert server.upload == content and completed.status_code == 200
+            metadata = dict(part.split(" ", 1) for part in server.requests[0]["headers"]["Upload-Metadata"].split(","))
+            assert base64.b64decode(metadata["label"]).decode() == "caf\u00e9"
+            assert base64.b64decode(metadata["assembly_url"]).decode() == assembly_url
+            server.upload = content[:3]
+            completed = await call(client, "resume_tus_upload", upload_url, content, assembly_url)
+            assert server.upload == content and completed.status_code == 200
+            assert server.requests[-2]["headers"]["Upload-Offset"] == "3"
+    asyncio.run(scenario())
 
 
 ASSEMBLY_ID = "a" * 32
@@ -88,9 +241,10 @@ class WireServer:
                 else:
                     await response.write(b"data: ping\n\n")
                     self.started.set()
-                    for _ in range(100):
+                    while request.transport is not None and not request.transport.is_closing():
                         await asyncio.sleep(.01)
                         await response.write(b": heartbeat\n\n")
+                    self.disconnected.set()
             except (ConnectionResetError, asyncio.CancelledError):
                 self.disconnected.set()
             return response
@@ -319,17 +473,18 @@ def test_stream_early_exit_closes_connection(mode):
                         assert next(events).event == "ping"
                 await asyncio.to_thread(consume)
             else:
+                consumed = asyncio.Event()
                 async def consume():
                     async with client.stream_assembly_status(url) as events:
                         assert (await anext(events)).event == "ping"
+                        consumed.set()
                         await asyncio.sleep(100)
                 task = asyncio.create_task(consume())
-                await asyncio.wait_for(server.started.wait(), 2)
-                await asyncio.sleep(.02)
+                await asyncio.wait_for(consumed.wait(), 10)
                 task.cancel()
                 with pytest.raises(asyncio.CancelledError):
                     await task
-            await asyncio.wait_for(server.disconnected.wait(), 2)
+            await asyncio.wait_for(server.disconnected.wait(), 10)
     asyncio.run(scenario())
 
 
