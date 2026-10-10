@@ -1,4 +1,12 @@
+import re
 from urllib.parse import urlparse
+
+from ._contract import CONTRACT
+
+
+def is_transloadit_api_host(hostname):
+    hostname = (hostname or "").lower()
+    return hostname == "api2.transloadit.com" or re.fullmatch(CONTRACT["capability"]["publicHostPattern"], hostname) is not None
 
 
 def normalize_service_url(service):
@@ -42,16 +50,14 @@ def should_sign_api_url(url, service):
         return True
 
     service_hostname = (parsed_service.hostname or "").lower()
-    service_is_transloadit_api = service_hostname == "api2.transloadit.com" or (
-        service_hostname.startswith("api2-")
-        and service_hostname.endswith(".transloadit.com")
-    )
+    service_is_transloadit_api = is_transloadit_api_host(service_hostname)
     hostname = (parsed_url.hostname or "").lower()
-    url_is_transloadit_api = hostname == "api2.transloadit.com" or (
-        hostname.startswith("api2-") and hostname.endswith(".transloadit.com")
-    )
+    url_is_transloadit_api = is_transloadit_api_host(hostname)
     return (
         service_is_transloadit_api
         and parsed_url.scheme == "https"
+        and parsed_url.port in {None, 443}
+        and parsed_url.username is None
+        and parsed_url.password is None
         and url_is_transloadit_api
     )

@@ -127,9 +127,10 @@ and ``files``. Requests are signed by default; pass ``bearer_token`` to use an
 existing token. ``issue_bearer_token`` also supports authorization-code and refresh
 flows. Automatic refresh is not performed.
 
-Public, token, SSE and raw TUS transports honor environment proxies. Sync calls also honor
-``REQUESTS_CA_BUNDLE`` / ``CURL_CA_BUNDLE``; async calls reuse an injected aiohttp
-session's DNS/TLS connector. Public, token, SSE and raw TUS calls isolate cookies,
+Isolated transports preserve network configuration. Sync calls honor environment
+proxies and ``REQUESTS_CA_BUNDLE`` / ``CURL_CA_BUNDLE``; async calls retain an injected
+session's DNS/TLS connector, explicit proxy/auth and ``trust_env`` setting, or use
+environment proxies by default. Public, token, SSE and raw TUS calls isolate cookies,
 default account auth and netrc credentials. Explicit bearer authentication takes
 precedence over netrc and injected session authentication.
 
@@ -137,6 +138,8 @@ Assembly get/cancel also isolate account credentials. Custom ``service`` deploym
 retain their returned Assembly worker hosts for high-level polling. The default
 Transloadit service restricts these requests to its API hosts; neither mode follows
 redirects or accepts credentials embedded in URLs.
+Legacy HTTP ``assembly_url`` values on known Transloadit hosts are upgraded to HTTPS.
+Both clients use the pinned contract's regional-host pattern.
 
 ``stream_assembly_status`` takes the returned ``update_stream_url`` and is used
 with ``with`` / ``async with``. Iterate its events with ``for`` / ``async for``;

@@ -1075,13 +1075,12 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                 new=mock.AsyncMock(side_effect=[rate_limited, success]),
             ) as post_mock:
                 with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock):
-                    with mock.patch("asyncio.to_thread", new=mock.AsyncMock(side_effect=lambda func, *args: func(*args))) as to_thread_mock:
-                        with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
-                            response = await assembly.create(resumable=True, retries=2)
+                    with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                        response = await assembly.create(resumable=True, retries=2)
 
         self.assertEqual(response.data["assembly_ssl_url"], f"{self.server.base_url}/assemblies/assembly-123")
         self.assertEqual(post_mock.await_count, 2)
-        self.assertEqual(to_thread_mock.await_count, 1)
+        self.assertEqual(sum(entry[0] == "upload" for entry in calls), 1)
         self.assertEqual(calls[0], ("client", f"{self.server.base_url}/uploads"))
         self.assertEqual(calls[1], ("uploader", {"assembly_url": f"{self.server.base_url}/assemblies/assembly-123", "fieldname": "file", "filename": "payload.bin"}, 2))
 
@@ -1136,13 +1135,12 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                 new=mock.AsyncMock(side_effect=[rate_limited, success]),
             ) as post_mock:
                 with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock):
-                    with mock.patch("asyncio.to_thread", new=mock.AsyncMock(side_effect=lambda func, *args: func(*args))) as to_thread_mock:
-                        with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
-                            response = await assembly.create(resumable=True, retries=2)
+                    with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                        response = await assembly.create(resumable=True, retries=2)
 
         self.assertEqual(response.data["assembly_ssl_url"], f"{self.server.base_url}/assemblies/assembly-123")
         self.assertEqual(post_mock.await_count, 2)
-        self.assertEqual(to_thread_mock.await_count, 1)
+        self.assertEqual(sum(entry[0] == "upload" for entry in calls), 1)
         self.assertEqual(calls[0], ("client", f"{self.server.base_url}/uploads"))
         self.assertEqual(calls[1][0], "uploader")
 
@@ -1349,20 +1347,11 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             upload.name = 123
             assembly.add_file(upload, "explicit_field")
 
-            with mock.patch(
-                "asyncio.to_thread",
-                new=mock.AsyncMock(side_effect=lambda func, *args: func(*args)),
-            ) as to_thread_mock:
-                with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
-                    response = await assembly.create(resumable=True)
+            with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                response = await assembly.create(resumable=True)
 
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
-        tus_upload_calls = [
-            call
-            for call in to_thread_mock.await_args_list
-            if getattr(call.args[0], "__name__", "") == "_do_tus_upload"
-        ]
-        self.assertEqual(len(tus_upload_calls), 1)
+        self.assertEqual(sum(entry[0] == "upload" for entry in calls), 1)
 
         create_request = next(
             entry for entry in self.server.requests if entry["path"] == "/assemblies" and entry["method"] == "POST"
@@ -1815,14 +1804,16 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
         self.assertEqual(session.calls[0][1]["data"]._fields[2][0]["filename"], "file")
 
-    async def test_async_resumable_upload_uses_to_thread(self):
+    async def test_async_resumable_upload_runs_in_worker_thread(self):
         calls = []
+        worker_threads = []
 
         class _Uploader:
             def __init__(self, metadata):
                 self.metadata = metadata
 
             def upload(self):
+                worker_threads.append(threading.get_ident())
                 calls.append(("upload", dict(self.metadata)))
 
         class _TusClient:
@@ -1847,13 +1838,13 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             )
 
             with mock.patch.object(client.request, "post", new=mock.AsyncMock(return_value=initial)):
-                with mock.patch("asyncio.to_thread", new=mock.AsyncMock(side_effect=lambda func, *args: func(*args))) as to_thread_mock:
-                    with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
-                        assembly.add_file(io.BytesIO(b"payload"))
-                        response = await assembly.create(resumable=True, retries=5)
+                with mock.patch("transloadit.async_assembly.tus.TusClient", new=_TusClient):
+                    assembly.add_file(io.BytesIO(b"payload"))
+                    response = await assembly.create(resumable=True, retries=5)
 
         self.assertEqual(response.data["assembly_ssl_url"], f"{self.server.base_url}/assemblies/assembly-123")
-        to_thread_mock.assert_awaited_once()
+        self.assertEqual(len(worker_threads), 1)
+        self.assertNotEqual(worker_threads[0], threading.get_ident())
         self.assertEqual(calls[0], ("client", f"{self.server.base_url}/uploads"))
         self.assertEqual(calls[1][0], "uploader")
         metadata = calls[1][1]

@@ -4,7 +4,7 @@ import math
 from tusclient import client as tus
 
 from . import optionbuilder
-from .upload import get_upload_filename, wait_for_upload_worker
+from .upload import get_upload_filename, run_upload_worker
 
 
 class AsyncAssembly(optionbuilder.OptionBuilder):
@@ -84,10 +84,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         # tuspy is synchronous, so cancellation cannot abort an upload already running in
         # the worker thread. Wait for the worker to release file streams before letting
         # cancellation unwind caller-owned file context managers.
-        upload_task = asyncio.create_task(
-            asyncio.to_thread(self._do_tus_upload, assembly_url, tus_url, retries)
-        )
-        await wait_for_upload_worker(upload_task)
+        await run_upload_worker(self._do_tus_upload, assembly_url, tus_url, retries)
 
     async def create(self, wait=False, resumable=True, retries=3):
         """

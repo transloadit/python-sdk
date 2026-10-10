@@ -250,13 +250,16 @@ def test_assembly_capabilities_do_not_borrow_account_credentials(mode, monkeypat
 
 
 @pytest.mark.parametrize("mode", ["sync", "async"])
-def test_text_mode_multipart_preserves_content_and_file_ownership(mode, tmp_path):
+@pytest.mark.parametrize("encoding,line_ending", [("utf-8", "\n"), ("utf-8", "\r\n"), ("utf-16", "\n")])
+def test_text_mode_multipart_preserves_content_and_file_ownership(mode, tmp_path, encoding, line_ending):
     path = tmp_path / "text.txt"
-    path.write_text("caf\u00e9\n", encoding="utf-8")
+    path.write_bytes(("caf\u00e9" + line_ending).encode(encoding))
     async def scenario():
         async with wire_client(mode) as (client, server):
+            if mode == "async":
+                client.request._timeout = lambda: aiohttp.ClientTimeout(total=5)
             assembly = client.new_assembly()
-            with path.open(encoding="utf-8") as upload:
+            with path.open(encoding=encoding) as upload:
                 assembly.add_file(upload, "text")
                 if mode == "sync":
                     await asyncio.to_thread(assembly.create, resumable=False)
@@ -296,6 +299,59 @@ def test_polling_continues_through_replaying_assemblies(mode):
         with mock.patch(sleep_path, new_callable=make_mock):
             assert await call(client, "wait_for_assembly", "assembly") is completed
         assert client.get_assembly.call_count == 2
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+@pytest.mark.parametrize("host", ["api2.transloadit.com", "api2-morven.transloadit.com"])
+def test_legacy_http_assembly_urls_use_https(mode, host):
+    async def scenario():
+        client = (Transloadit if mode == "sync" else AsyncTransloadit)("key", "secret")
+        client.request.public = (mock.Mock if mode == "sync" else mock.AsyncMock)()
+        for method, verb in [("get_assembly", "GET"), ("cancel_assembly", "DELETE")]:
+            await call(client, method, assembly_url=f"http://{host}/assemblies/{ASSEMBLY_ID}")
+            client.request.public.assert_called_with(verb, f"https://{host}/assemblies/{ASSEMBLY_ID}", params=None)
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+@pytest.mark.parametrize("host", ["api2-x.other.transloadit.com", "api2-xn--example.transloadit.com"])
+def test_assembly_urls_use_contract_host_pattern(mode, host):
+    async def scenario():
+        client = (Transloadit if mode == "sync" else AsyncTransloadit)("key", "secret")
+        client.request.public = (mock.Mock if mode == "sync" else mock.AsyncMock)()
+        with pytest.raises(ValueError, match="untrusted Assembly URL"):
+            await call(client, "get_assembly", assembly_url=f"https://{host}/assemblies/{ASSEMBLY_ID}")
+        client.request.public.assert_not_called()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("trust_env", [False, True])
+def test_isolated_async_calls_preserve_explicit_proxy_configuration(monkeypatch, trust_env):
+    # The injected proxy takes precedence over an unusable environment proxy.
+    monkeypatch.delenv("http_proxy", raising=False)
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.3:1")
+    monkeypatch.delenv("no_proxy", raising=False)
+    monkeypatch.setenv("NO_PROXY", "")
+    async def scenario():
+        async with wire_client("async") as (_, server):
+            proxy_auth = aiohttp.BasicAuth("proxy-user", "proxy-password")
+            async with aiohttp.ClientSession(proxy=server.url, proxy_auth=proxy_auth, trust_env=trust_env) as session:
+                service = "http://127.0.0.2:1"
+                client = AsyncTransloadit("key", "secret", service=service, session=session, bearer_token="selected-token")
+                await client.list_auth_keys()
+                await client.get_assembly(assembly_id=ASSEMBLY_ID)
+                await client.list_assembly_notifications(ASSEMBLY_ID)
+                await client.issue_bearer_token({"grant_type": "refresh_token", "refresh_token": "refresh"})
+                await client.tus_options({"assembly_id": ASSEMBLY_ID, "assembly_ssl_url": service + "/assemblies/" + ASSEMBLY_ID,
+                                          "tus_url": service + "/resumable/files"})
+                async with client.stream_assembly_status(service + "/ws1?assembly=" + ASSEMBLY_ID) as events:
+                    assert [event async for event in events][-1].terminal
+                assert not session.closed
+            assert len(server.requests) == 6
+            assert all(request["headers"]["Proxy-Authorization"] == proxy_auth.encode() for request in server.requests)
+            assert server.requests[0]["headers"]["Authorization"] == "Bearer selected-token"
+            assert all("Authorization" not in request["headers"] for request in server.requests[1:])
     asyncio.run(scenario())
 
 

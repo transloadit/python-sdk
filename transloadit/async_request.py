@@ -19,7 +19,7 @@ from .api_url import should_sign_api_url
 from .endpoint_transport import async_network_options, capability_url, token_request, tus_request, validate_upload_location
 from .response import Response
 from .stream import EventParser, StreamError
-from .upload import get_upload_filename, wait_for_upload_worker
+from .upload import get_upload_filename, run_upload_worker
 
 TIMEOUT = 60
 
@@ -91,7 +91,10 @@ class _NonClosingUploadStream(io.IOBase):
 
 class _NonClosingTextUploadStream(_NonClosingUploadStream, io.TextIOBase):
     # Preserve aiohttp's TextIOPayload selection and UTF-8 encoding of text reads.
-    pass
+    def fileno(self):
+        # Disk byte size is not the encoded payload length (CRLF, UTF-16, etc.).
+        # Unknown length makes aiohttp use chunked transfer without buffering.
+        raise io.UnsupportedOperation("Text upload byte length is unknown.")
 
 
 class AsyncRequest:
@@ -130,7 +133,7 @@ class AsyncRequest:
         headers = self._headers(url)
         options = {"headers": headers, "timeout": self._timeout(), "allow_redirects": False}
         if "Authorization" in headers:
-            options.update(async_network_options(url))
+            options.update(async_network_options(url, self._session))
         return options
 
     def _get_session_lock(self):
@@ -256,7 +259,7 @@ class AsyncRequest:
                 def drain():
                     for upload in uploads:
                         upload.drain()
-                await wait_for_upload_worker(asyncio.create_task(asyncio.to_thread(drain)))
+                await run_upload_worker(drain)
 
     async def put(self, path, data=None, extra_data=None, files=None):
         """
@@ -333,7 +336,7 @@ class AsyncRequest:
         async with self._isolated_session() as session:
             async with session.request(method, url, params=params, data=data,
                                        headers=self._headers(), timeout=self._timeout(), allow_redirects=False,
-                                       **async_network_options(url)) as response:
+                                       **async_network_options(url, self._session)) as response:
                 return Response(data=await self._read_response_data(response), status_code=response.status,
                                 headers=CaseInsensitiveDict(response.headers))
 
@@ -342,7 +345,7 @@ class AsyncRequest:
         headers.update(self._headers())
         async with self._isolated_session() as session:
             async with session.post(url, data=self._normalize_payload(data), headers=headers,
-                                    timeout=self._timeout(), allow_redirects=False, **async_network_options(url)) as response:
+                                    timeout=self._timeout(), allow_redirects=False, **async_network_options(url, self._session)) as response:
                 return Response(data=await self._read_response_data(response), status_code=response.status,
                                 headers=CaseInsensitiveDict(response.headers))
 
@@ -351,7 +354,7 @@ class AsyncRequest:
         headers.update(self._headers())
         async with self._isolated_session() as session:
             async with session.request(spec["method"], url, data=body, headers=headers,
-                                       timeout=self._timeout(), allow_redirects=False, **async_network_options(url)) as raw:
+                                       timeout=self._timeout(), allow_redirects=False, **async_network_options(url, self._session)) as raw:
                 data = await raw.read() if spec["binary_response"] else await self._read_response_data(raw)
                 response = Response(data=data, status_code=raw.status, headers=CaseInsensitiveDict(raw.headers))
         if spec["method"] == "POST":
@@ -365,7 +368,7 @@ class AsyncRequest:
         timeout = aiohttp.ClientTimeout(total=None, sock_connect=TIMEOUT, sock_read=read_timeout)
         async with self._isolated_session() as session:
             async with session.get(url, headers={**self._headers(), "Accept": "text/event-stream"},
-                                   timeout=timeout, allow_redirects=False, **async_network_options(url)) as response:
+                                   timeout=timeout, allow_redirects=False, **async_network_options(url, self._session)) as response:
                 if response.status != 200:
                     raise StreamError(response.status)
                 if response.headers.get("Content-Type", "").split(";", 1)[0].lower() != "text/event-stream":

@@ -1,24 +1,30 @@
 import asyncio
 import base64
+import contextvars
+from functools import partial
 import os
 import re
 
 
-async def wait_for_upload_worker(task):
-    """Drain an owned worker even when the caller is cancelled more than once."""
+async def run_upload_worker(function, *args):
+    """Run and drain a worker, including during global event-loop shutdown."""
+    context = contextvars.copy_context()
+    # Executor futures are not Tasks cancelled by asyncio.run's global shutdown.
+    # Shielding this private future therefore tracks actual thread completion.
+    future = asyncio.get_running_loop().run_in_executor(None, partial(context.run, function, *args))
     cancelled = False
-    while not task.done():
+    while not future.done():
         try:
-            await asyncio.shield(task)
+            await asyncio.shield(future)
         except asyncio.CancelledError:
             cancelled = True
         except Exception:
             break
     if cancelled:
-        if not task.cancelled():
-            task.exception()  # Retrieve a worker failure while preserving cancellation.
+        if not future.cancelled():
+            future.exception()  # Retrieve a worker failure while preserving cancellation.
         raise asyncio.CancelledError
-    return task.result()
+    return future.result()
 
 
 def encode_upload_metadata(fieldname, filename, user_meta):

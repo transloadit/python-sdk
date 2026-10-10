@@ -6,7 +6,7 @@ from urllib.parse import quote
 import requests
 
 from . import assembly, request, template
-from .api_url import normalize_service_url, require_path_id
+from .api_url import is_transloadit_api_host, normalize_service_url, require_path_id
 from .upload import check_assembly_created, encode_upload_metadata
 from .smart_cdn import URL_PARAM_VALUES, build_signed_smart_cdn_url
 
@@ -79,6 +79,12 @@ class Transloadit:
         )
         try:
             candidate = urlparse(candidate_url)
+            if (candidate.scheme == "http" and candidate.port in {None, 80}
+                    and candidate.username is None and candidate.password is None
+                    and is_transloadit_api_host(candidate.hostname)):
+                # Preserve the API's legacy assembly_url field without plain HTTP.
+                candidate = candidate._replace(scheme="https", netloc=candidate.hostname)
+                candidate_url = candidate.geturl()
             configured = urlparse(self.service)
             candidate_port = candidate.port or (443 if candidate.scheme == "https" else 80)
             configured_port = configured.port or (443 if configured.scheme == "https" else 80)
@@ -105,14 +111,11 @@ class Transloadit:
             not has_url_credentials
             and candidate.scheme == "https"
             and candidate_port == 443
-            and candidate_hostname.startswith("api2-")
-            and candidate_hostname.endswith(".transloadit.com")
+            and is_transloadit_api_host(candidate_hostname)
         )
         # Explicit custom/Gateway services retain their legacy worker origins.
         # These are capability requests: session account credentials stay isolated.
-        custom_service = configured_hostname != "api2.transloadit.com" and not (
-            configured_hostname.startswith("api2-") and configured_hostname.endswith(".transloadit.com")
-        )
+        custom_service = not is_transloadit_api_host(configured_hostname)
         custom_destination = custom_service and not has_url_credentials and bool(candidate_hostname) and candidate.scheme in {"http", "https"}
         if not (configured_origin or configured_https_host or api2_cell or custom_destination):
             raise ValueError("Refusing to request an untrusted Assembly URL.")

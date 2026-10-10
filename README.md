@@ -74,7 +74,7 @@ async def main():
 asyncio.run(main())
 ```
 
-The async client keeps polling on `asyncio.sleep`. Resumable uploads still use the existing TUS client, but are offloaded with `asyncio.to_thread()` so the event loop stays responsive.
+The async client keeps polling on `asyncio.sleep`. Resumable uploads still use the existing TUS client, but are offloaded to worker threads so the event loop stays responsive.
 
 Cancellation of a resumable upload waits for the tuspy upload batch, including
 retries, to finish before releasing your files. Multipart cancellation waits for
@@ -102,9 +102,10 @@ remain the default. To use a bearer token, pass
 authorization-code and refresh-token grants; omitted `grant_type` keeps the
 client-credentials default. Tokens are not refreshed automatically.
 
-Public, token, SSE and raw TUS transports honor environment proxies. Sync calls also honor
-`REQUESTS_CA_BUNDLE` / `CURL_CA_BUNDLE`; async transports reuse the DNS/TLS connector
-of an injected aiohttp session. Public, token, SSE and raw TUS calls use isolated
+Isolated transports preserve network configuration. Sync calls honor environment
+proxies and `REQUESTS_CA_BUNDLE` / `CURL_CA_BUNDLE`; async calls retain an injected
+aiohttp session's DNS/TLS connector, explicit proxy/auth and `trust_env` setting,
+or use environment proxies by default. Public, token, SSE and raw TUS calls use isolated
 sessions so injected cookies, default account auth and netrc credentials cannot
 be forwarded accidentally. Explicit bearer authentication also takes precedence
 over netrc and injected session authentication.
@@ -113,6 +114,8 @@ Assembly get/cancel requests use the same credential isolation. When `service`
 points to a custom deployment, its returned Assembly worker hosts remain supported,
 including for high-level polling. The default Transloadit service restricts these
 requests to its API hosts; neither mode follows redirects or accepts URL credentials.
+Legacy HTTP `assembly_url` values on known Transloadit API hosts are upgraded to
+HTTPS automatically. Both clients use the pinned contract's regional-host pattern.
 
 SSE uses the returned Assembly `update_stream_url` and a context manager:
 
