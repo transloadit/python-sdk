@@ -225,8 +225,8 @@ class AsyncRequest:
 
         uploads = []
         if files:
-            # API2 preserves percent escapes in filename parameters. Match
-            # Requests' RFC 7578 quoting while retaining spaces and UTF-8.
+            # Retain spaces/UTF-8; escape CR/LF/quotes as Requests does. aiohttp
+            # additionally escapes backslashes, which API2 decodes equivalently.
             form = aiohttp.FormData(quote_fields=False)
             for key, value in self._normalize_payload(data):
                 form.add_field(_multipart_parameter(key), value)
