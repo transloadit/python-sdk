@@ -19,6 +19,26 @@ Only Python 3.12+ versions are supported.
 pip install pytransloadit
 ```
 
+## Upgrading from 1.x to 2.0
+
+Python 3.9, 3.10, and 3.11 are no longer supported. Upgrade your development,
+CI, and deployment interpreters to Python 3.12 or newer before installing 2.0.
+If you must keep an older interpreter, pin `pytransloadit<2` to stay on 1.x
+(the latest 1.x release is 1.0.4).
+
+2.0 requires `requests>=2.33,<3` and `urllib3>=2.7,<3`. Update any older
+application pins or constraints and regenerate your lockfile before upgrading:
+
+```bash
+python -m pip install --upgrade 'pytransloadit>=2,<3'
+```
+
+The synchronous client API and imports remain compatible with 1.0.4 on supported
+interpreters. Asyncio support is tracked separately in
+[#57](https://github.com/transloadit/python-sdk/pull/57) and can land in a later
+2.x minor release. The dependency refresh shipped in 1.0.4 does not require
+upgrading to 2.0.
+
 ## Usage
 
 ```python

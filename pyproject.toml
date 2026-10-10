@@ -50,7 +50,7 @@ sphinx = "^9.1.0"
 sphinx-autobuild = "^2025.8.25"
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.2,<3"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]

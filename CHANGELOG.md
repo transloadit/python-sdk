@@ -1,9 +1,12 @@
-### 2.0.0 / 2026-05-20 ###
-* **Breaking Change**: Raised the supported Python runtime floor from 3.9+ to 3.12+ so the SDK no longer has to retain vulnerable locked dependency versions for EOL Python 3.9 or depend on tooling lines that are already dropping older runtime support.
-* Raised the runtime HTTP stack to patched versions by requiring `requests` 2.33+ and adding an explicit `urllib3` 2.7+ floor.
+### 2.0.0 / Unreleased ###
+* **Breaking Change**: Python 3.9, 3.10, and 3.11 are no longer supported. Installing 2.0 requires Python 3.12 or newer; upgrade the interpreter before upgrading the SDK. Applications that must stay on those older interpreters can pin `pytransloadit<2` (the latest 1.x release is 1.0.4).
+* **Breaking Change**: Runtime dependencies now require `requests>=2.33,<3` and `urllib3>=2.7,<3`. Remove or update older pins in application requirements/constraints and regenerate the application lockfile; incompatible pins will prevent installation.
+* The synchronous client API, imports, Assembly creation/polling, uploads, and Smart CDN signing remain compatible with 1.0.4 on supported interpreters. Asyncio support is tracked separately in #57 and is not part of 2.0.
+* The dependency refresh already released in 1.0.4 remains available to 1.x users; 2.0 removes the old-interpreter lockfile variants and requires the newer HTTP stack on every supported runtime.
 * Updated development and documentation tooling, including `pytest` 9.0.3, `Sphinx` 9.1, `sphinx-autobuild` 2025.8, `coverage` 7.14, `tox` 4.54, and `requests-mock` 1.12.
 * Updated CI and local Docker test coverage to a representative Python 3.12, 3.13, and 3.14 matrix.
 * Migrated package metadata to the modern `[project]` format used by Poetry 2.
+* Source contributors need Poetry 2.4.1 for the documented Docker/CI toolchain; isolated package builds require `poetry-core>=2.2,<3`. Normal `pip` installation installs the build backend automatically when needed.
 * Refreshed GitHub Actions, release documentation, and Sphinx docs that still referenced older runtime/tooling assumptions.
 
 ### 1.0.4 / 2026-05-20 ###
