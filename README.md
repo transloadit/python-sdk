@@ -106,7 +106,13 @@ Public, token, SSE and raw TUS transports honor environment proxies. Sync calls 
 `REQUESTS_CA_BUNDLE` / `CURL_CA_BUNDLE`; async transports reuse the DNS/TLS connector
 of an injected aiohttp session. Public, token, SSE and raw TUS calls use isolated
 sessions so injected cookies, default account auth and netrc credentials cannot
-be forwarded accidentally.
+be forwarded accidentally. Explicit bearer authentication also takes precedence
+over netrc and injected session authentication.
+
+Assembly get/cancel requests use the same credential isolation. When `service`
+points to a custom deployment, its returned Assembly worker hosts remain supported,
+including for high-level polling. The default Transloadit service restricts these
+requests to its API hosts; neither mode follows redirects or accepts URL credentials.
 
 SSE uses the returned Assembly `update_stream_url` and a context manager:
 

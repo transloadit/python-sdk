@@ -406,18 +406,15 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             service="https://api2.transloadit.com",
             session=transloadit_session,
         )
-        await transloadit_client.get_assembly(
-            assembly_url="https://api2-region.transloadit.com/assemblies/abc123",
-            params={"nonce": 123},
+        with mock.patch.object(transloadit_client.request, "public", new_callable=mock.AsyncMock) as request_mock:
+            await transloadit_client.get_assembly(
+                assembly_url="https://api2-region.transloadit.com/assemblies/abc123",
+                params={"nonce": 123},
+            )
+        request_mock.assert_awaited_once_with(
+            "GET", "https://api2-region.transloadit.com/assemblies/abc123", params={"nonce": 123}
         )
-        self.assertEqual(
-            transloadit_session.calls[0][0],
-            "https://api2-region.transloadit.com/assemblies/abc123",
-        )
-        request_kwargs = transloadit_session.calls[0][1]
-        self.assertEqual(request_kwargs["params"], {"nonce": 123})
-        self.assertNotIn("Authorization", request_kwargs["headers"])
-        self.assertFalse(request_kwargs["allow_redirects"])
+        self.assertEqual(transloadit_session.calls, [])
 
         await client.close()
 
@@ -440,8 +437,13 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         session = _RecordingSession({"ok": "ASSEMBLY_COMPLETED"})
         client = AsyncTransloadit("key", "secret", service=self.server.base_url, session=session)
 
-        await client.get_assembly(assembly_id="assembly/with?chars")
-        await client.cancel_assembly(assembly_id="cancel/with?chars")
+        with mock.patch.object(client.request, "public", new_callable=mock.AsyncMock) as public:
+            await client.get_assembly(assembly_id="assembly/with?chars")
+            await client.cancel_assembly(assembly_id="cancel/with?chars")
+        self.assertEqual(public.await_args_list, [
+            mock.call("GET", f"{self.server.base_url}/assemblies/assembly%2Fwith%3Fchars", params=None),
+            mock.call("DELETE", f"{self.server.base_url}/assemblies/cancel%2Fwith%3Fchars", params=None),
+        ])
         await client.get_template("template/with?chars")
         await client.update_template("update/with?chars", {"name": "foo"})
         await client.delete_template("delete/with?chars")
@@ -450,8 +452,6 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         self.assertEqual(
             urls,
             [
-                f"{self.server.base_url}/assemblies/assembly%2Fwith%3Fchars",
-                f"{self.server.base_url}/assemblies/cancel%2Fwith%3Fchars",
                 f"{self.server.base_url}/templates/template%2Fwith%3Fchars",
                 f"{self.server.base_url}/templates/update%2Fwith%3Fchars",
                 f"{self.server.base_url}/templates/delete%2Fwith%3Fchars",

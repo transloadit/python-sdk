@@ -79,31 +79,18 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(response.data["assembly_id"], "abcdef12345")
 
     def test_assembly_urls_are_trusted_and_unauthenticated(self):
-        with mock.patch("transloadit.client.requests.request") as request_mock:
+        with mock.patch.object(self.transloadit.request, "public") as request_mock:
             for method in (self.transloadit.get_assembly, self.transloadit.cancel_assembly):
                 with self.assertRaisesRegex(ValueError, "untrusted Assembly URL"):
                     method(assembly_url="https://example.com/assemblies/abc123")
             request_mock.assert_not_called()
-
-        raw_response = mock.Mock()
-        raw_response.json.return_value = {"ok": "ASSEMBLY_COMPLETED"}
-        with mock.patch(
-            "transloadit.client.requests.request",
-            return_value=raw_response,
-        ) as request_mock:
             self.transloadit.get_assembly(
                 assembly_url="https://api2-region.transloadit.com/assemblies/abc123",
                 params={"nonce": 123},
             )
-
-        request_mock.assert_called_once()
-        method, url = request_mock.call_args.args
-        request_kwargs = request_mock.call_args.kwargs
-        self.assertEqual(method, "GET")
-        self.assertEqual(url, "https://api2-region.transloadit.com/assemblies/abc123")
-        self.assertEqual(request_kwargs["params"], {"nonce": 123})
-        self.assertNotIn("Authorization", request_kwargs["headers"])
-        self.assertFalse(request_kwargs["allow_redirects"])
+        request_mock.assert_called_once_with(
+            "GET", "https://api2-region.transloadit.com/assemblies/abc123", params={"nonce": 123}
+        )
 
     @requests_mock.Mocker()
     def test_issue_bearer_token_uses_basic_auth_and_form_encoding(self, requests_mock):

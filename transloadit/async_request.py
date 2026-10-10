@@ -89,6 +89,11 @@ class _NonClosingUploadStream(io.IOBase):
         return self._call("tell")
 
 
+class _NonClosingTextUploadStream(_NonClosingUploadStream, io.TextIOBase):
+    # Preserve aiohttp's TextIOPayload selection and UTF-8 encoding of text reads.
+    pass
+
+
 class AsyncRequest:
     """
     Transloadit tailored asynchronous HTTP request object.
@@ -111,6 +116,22 @@ class AsyncRequest:
         if url and getattr(self.transloadit, "bearer_token", None) and should_sign_api_url(url, self.transloadit.service):
             headers["Authorization"] = "Bearer " + self.transloadit.bearer_token
         return headers
+
+    @asynccontextmanager
+    async def _api_session(self, url):
+        if "Authorization" in self._headers(url):
+            # Explicit bearer auth wins over netrc and injected account defaults.
+            async with self._isolated_session() as session:
+                yield session
+        else:
+            yield await self._ensure_session()
+
+    def _request_options(self, url):
+        headers = self._headers(url)
+        options = {"headers": headers, "timeout": self._timeout(), "allow_redirects": False}
+        if "Authorization" in headers:
+            options.update(async_network_options(url))
+        return options
 
     def _get_session_lock(self):
         if self._session_lock is None:
@@ -172,13 +193,10 @@ class AsyncRequest:
         Makes an asynchronous HTTP GET request.
         """
         url = self._get_full_url(path)
-        session = await self._ensure_session()
-        async with session.get(
+        async with self._api_session(url) as session, session.get(
             url,
             params=self._to_request_payload(url, params),
-            headers=self._headers(url),
-            timeout=self._timeout(),
-            allow_redirects=False,
+            **self._request_options(url),
         ) as response:
             return Response(
                 data=await self._read_response_data(response),
@@ -194,7 +212,6 @@ class AsyncRequest:
 
     async def _form_request(self, method, path, data=None, extra_data=None, files=None):
         url = self._get_full_url(path)
-        session = await self._ensure_session()
         data = self._to_request_payload(url, data) or {}
         if extra_data:
             data.update(extra_data)
@@ -206,7 +223,8 @@ class AsyncRequest:
                 form.add_field(key, value)
 
             for key, file_stream in files.items():
-                upload = _NonClosingUploadStream(file_stream)
+                wrapper = _NonClosingTextUploadStream if isinstance(file_stream, io.TextIOBase) else _NonClosingUploadStream
+                upload = wrapper(file_stream)
                 uploads.append(upload)
                 filename = get_upload_filename(file_stream, key)
                 content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
@@ -221,12 +239,10 @@ class AsyncRequest:
             payload = self._normalize_payload(data)
 
         try:
-            async with getattr(session, method)(
+            async with self._api_session(url) as session, getattr(session, method)(
                 url,
                 data=payload,
-                headers=self._headers(url),
-                timeout=self._timeout(),
-                allow_redirects=False,
+                **self._request_options(url),
             ) as response:
                 return Response(
                     data=await self._read_response_data(response),
@@ -256,14 +272,11 @@ class AsyncRequest:
         Makes an asynchronous HTTP DELETE request.
         """
         url = self._get_full_url(path)
-        session = await self._ensure_session()
         data = self._normalize_payload(self._to_request_payload(url, data) or {})
-        async with session.delete(
+        async with self._api_session(url) as session, session.delete(
             url,
             data=data,
-            headers=self._headers(url),
-            timeout=self._timeout(),
-            allow_redirects=False,
+            **self._request_options(url),
         ) as response:
             return Response(
                 data=await self._read_response_data(response),

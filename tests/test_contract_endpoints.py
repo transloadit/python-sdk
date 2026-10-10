@@ -198,6 +198,107 @@ def test_high_level_raw_tus_upload_and_resume(mode):
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_explicit_bearer_wins_over_netrc_for_every_http_method(mode, monkeypatch, tmp_path):
+    netrc = tmp_path / "netrc"
+    netrc.write_text("machine 127.0.0.1 login ambient password must-not-leak\n")
+    monkeypatch.setenv("NETRC", str(netrc))
+    async def scenario():
+        async with wire_client(mode, bearer_token="selected-token") as (client, server):
+            await call(client, "list_auth_keys")
+            await call(client, "create_auth_key", {"description": "test"})
+            await call(client, "update_auth_key", "key-id", {"description": "updated"})
+            await call(client, "move_dam_asset", "asset-id", {"filename": "updated"})
+            await call(client, "delete_auth_key", "key-id")
+            assert {request["method"] for request in server.requests} == {"GET", "POST", "PUT", "PATCH", "DELETE"}
+            assert all(request["headers"]["Authorization"] == "Bearer selected-token" for request in server.requests)
+    asyncio.run(scenario())
+
+
+def test_bearer_ignores_injected_session_account_credentials():
+    async def scenario():
+        async with wire_client("async") as (_, server):
+            async with aiohttp.ClientSession(auth=aiohttp.BasicAuth("ambient", "secret"),
+                                             headers={"Cookie": "ambient-cookie"}) as session:
+                client = AsyncTransloadit("key", None, service=server.url, session=session, bearer_token="selected-token")
+                await client.list_auth_keys()
+                assert server.requests[-1]["headers"]["Authorization"] == "Bearer selected-token"
+                assert "Cookie" not in server.requests[-1]["headers"]
+                assert not session.closed
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_assembly_capabilities_do_not_borrow_account_credentials(mode, monkeypatch, tmp_path):
+    netrc = tmp_path / "netrc"
+    netrc.write_text("machine 127.0.0.1 login ambient password must-not-leak\n")
+    monkeypatch.setenv("NETRC", str(netrc))
+    async def scenario():
+        async with wire_client(mode, bearer_token="must-not-leak") as (client, server):
+            async with aiohttp.ClientSession(auth=aiohttp.BasicAuth("ambient", "secret"),
+                                             headers={"Cookie": "ambient-cookie"}) as session:
+                if mode == "async":
+                    client = AsyncTransloadit("key", "secret", service=server.url, session=session, bearer_token="must-not-leak")
+                await call(client, "get_assembly", assembly_id=ASSEMBLY_ID)
+                await call(client, "cancel_assembly", assembly_url=server.url + "/assemblies/" + ASSEMBLY_ID)
+            assert len(server.requests) == 2
+            for request in server.requests:
+                assert "Authorization" not in request["headers"]
+                assert "Cookie" not in request["headers"]
+                assert request["query"] == {}
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_text_mode_multipart_preserves_content_and_file_ownership(mode, tmp_path):
+    path = tmp_path / "text.txt"
+    path.write_text("caf\u00e9\n", encoding="utf-8")
+    async def scenario():
+        async with wire_client(mode) as (client, server):
+            assembly = client.new_assembly()
+            with path.open(encoding="utf-8") as upload:
+                assembly.add_file(upload, "text")
+                if mode == "sync":
+                    await asyncio.to_thread(assembly.create, resumable=False)
+                else:
+                    await assembly.create(resumable=False)
+                assert not upload.closed
+            assert server.requests[-1]["fields"]["text"] == "caf\u00e9\n".encode()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_custom_service_can_poll_returned_worker_origin(mode):
+    async def scenario():
+        async with wire_client(mode) as (client, server), wire_client(mode) as (_, worker):
+            server.assembly_response = {"ok": "ASSEMBLY_UPLOADING", "assembly_id": ASSEMBLY_ID,
+                                        "assembly_ssl_url": worker.url + "/assemblies/" + ASSEMBLY_ID}
+            assembly = client.new_assembly()
+            sleep_path = "transloadit.assembly.sleep" if mode == "sync" else "transloadit.async_assembly.asyncio.sleep"
+            with mock.patch(sleep_path, new_callable=mock.Mock if mode == "sync" else mock.AsyncMock):
+                if mode == "sync":
+                    result = await asyncio.to_thread(assembly.create, wait=True)
+                else:
+                    result = await assembly.create(wait=True)
+            assert result.data["ok"] == "ASSEMBLY_COMPLETED"
+            assert "Authorization" not in worker.requests[-1]["headers"]
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_polling_continues_through_replaying_assemblies(mode):
+    async def scenario():
+        client = (Transloadit if mode == "sync" else AsyncTransloadit)("key", "secret")
+        make_mock = mock.Mock if mode == "sync" else mock.AsyncMock
+        completed = Response(data={"ok": "ASSEMBLY_COMPLETED"}, status_code=200)
+        client.get_assembly = make_mock(side_effect=[Response(data={"ok": "ASSEMBLY_REPLAYING"}, status_code=200), completed])
+        sleep_path = "transloadit.client.sleep" if mode == "sync" else "transloadit.async_client.asyncio.sleep"
+        with mock.patch(sleep_path, new_callable=make_mock):
+            assert await call(client, "wait_for_assembly", "assembly") is completed
+        assert client.get_assembly.call_count == 2
+    asyncio.run(scenario())
+
+
 ASSEMBLY_ID = "a" * 32
 
 
@@ -222,6 +323,10 @@ class WireServer:
         record = {"method": request.method, "path": request.path, "body": data,
                   "fields": fields, "query": dict(request.query), "headers": CaseInsensitiveDict(request.headers)}
         self.requests.append(record)
+        if request.method == "GET" and request.path == "/assemblies/" + ASSEMBLY_ID:
+            return web.json_response({"ok": "ASSEMBLY_COMPLETED", "assembly_id": ASSEMBLY_ID})
+        if request.method == "POST" and request.path == "/assemblies" and hasattr(self, "assembly_response"):
+            return web.json_response(self.assembly_response)
         if request.path == "/ws1":
             if self.stream_mode == "redirect":
                 return web.Response(status=302, headers={"Location": self.url + "/redirect-target"})

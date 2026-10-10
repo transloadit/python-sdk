@@ -98,27 +98,18 @@ class AsyncTransloadit:
             and candidate_hostname.startswith("api2-")
             and candidate_hostname.endswith(".transloadit.com")
         )
-        if not (configured_origin or configured_https_host or api2_cell):
+        # Explicit custom/Gateway services retain their legacy worker origins.
+        # These are capability requests: session account credentials stay isolated.
+        custom_service = configured_hostname != "api2.transloadit.com" and not (
+            configured_hostname.startswith("api2-") and configured_hostname.endswith(".transloadit.com")
+        )
+        custom_destination = custom_service and not has_url_credentials and bool(candidate_hostname) and candidate.scheme in {"http", "https"}
+        if not (configured_origin or configured_https_host or api2_cell or custom_destination):
             raise ValueError("Refusing to request an untrusted Assembly URL.")
         if method not in {"GET", "DELETE"}:
             raise ValueError(f"Unsupported Assembly URL method: {method}")
 
-        session = await self.request._ensure_session()
-        async with session.request(
-            method,
-            candidate_url,
-            params=params,
-            headers=self.request._headers(),
-            timeout=self.request._timeout(),
-            allow_redirects=False,
-        ) as raw_response:
-            from .response import Response
-
-            return Response(
-                data=await self.request._read_response_data(raw_response),
-                status_code=raw_response.status,
-                headers=raw_response.headers,
-            )
+        return await self.request.public(method, candidate_url, params=params)
 
     async def create_assembly_with_id(self, assembly_id: str, data: Optional[dict] = None, extra_data: Optional[dict] = None, files: Optional[dict] = None):
         """
@@ -639,7 +630,7 @@ class AsyncTransloadit:
                 return response
 
             # The polling is done if the assembly is not uploading or executing anymore.
-            if data.get("ok") not in ("ASSEMBLY_UPLOADING", "ASSEMBLY_EXECUTING"):
+            if data.get("ok") not in ("ASSEMBLY_UPLOADING", "ASSEMBLY_EXECUTING", "ASSEMBLY_REPLAYING"):
                 return response
 
             await asyncio.sleep(1)

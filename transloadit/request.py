@@ -16,6 +16,12 @@ from .stream import EventParser, StreamError
 TIMEOUT = 60
 
 
+class _ExplicitAuthorization(requests.auth.AuthBase):
+    """Keep an explicit Authorization header from being replaced by netrc."""
+    def __call__(self, request):
+        return request
+
+
 class Request:
     """
     Transloadit tailored HTTP Request object.
@@ -39,6 +45,9 @@ class Request:
             headers["Authorization"] = "Bearer " + self.transloadit.bearer_token
         return headers
 
+    def _auth(self, url):
+        return _ExplicitAuthorization() if "Authorization" in self._headers(url) else None
+
     @as_response
     def get(self, path, params=None):
         """
@@ -55,6 +64,7 @@ class Request:
             url,
             params=self._to_request_payload(url, params),
             headers=self._headers(url),
+            auth=self._auth(url),
             timeout=TIMEOUT,
             allow_redirects=False,
         )
@@ -85,6 +95,7 @@ class Request:
             data=data,
             files=files,
             headers=self._headers(url),
+            auth=self._auth(url),
             timeout=TIMEOUT,
             allow_redirects=False,
         )
@@ -109,6 +120,7 @@ class Request:
             data=data,
             files=files,
             headers=self._headers(url),
+            auth=self._auth(url),
             timeout=TIMEOUT,
             allow_redirects=False,
         )
@@ -117,7 +129,7 @@ class Request:
     def patch(self, path, data=None):
         url = self._get_full_url(path)
         return requests.patch(url, data=self._to_request_payload(url, data),
-                              headers=self._headers(url), timeout=TIMEOUT, allow_redirects=False)
+                              headers=self._headers(url), auth=self._auth(url), timeout=TIMEOUT, allow_redirects=False)
 
     @as_response
     def delete(self, path, data=None):
@@ -136,6 +148,7 @@ class Request:
             url,
             data=data,
             headers=self._headers(url),
+            auth=self._auth(url),
             timeout=TIMEOUT,
             allow_redirects=False,
         )
