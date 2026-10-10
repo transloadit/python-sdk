@@ -49,7 +49,7 @@ Install
     pip install pytransloadit
 
 Upgrading from 1.x to 2.0
-------------------------
+-------------------------
 
 Python 3.9, 3.10, and 3.11 are no longer supported. Upgrade development,
 CI, and deployment interpreters to Python 3.12 or newer before installing 2.0.

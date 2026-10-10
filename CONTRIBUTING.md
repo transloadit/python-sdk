@@ -9,7 +9,7 @@
 
 **Steps for version `2.0.0` (example)**
 1. Bump version in `pyproject.toml`, `transloadit/__init__.py`, and `tests/test_request.py`, and update `version`/`release` in `docs/source/conf.py`. PR #56 prepares these as `2.0.0`/`2.0` already.
-2. Replace `Unreleased` in the `### 2.0.0 / Unreleased ###` entry in `CHANGELOG.md` with the actual release date (`YYYY-MM-DD`). Review the breaking changes and upgrade notes in README and the Sphinx docs.
+2. Replace `Unreleased` in the `### 2.0.0 / Unreleased ###` entry in `CHANGELOG.md` with the actual release date (`YYYY-MM-DD`). Review the breaking changes and upgrade notes in README and the Sphinx docs. The publishing helper rejects an `Unreleased` entry; `--dry-run` allows it so a prepared release can still be validated.
 3. Run the full Python 3.12, 3.13, and 3.14 matrix, then the optional live upload with test-account credentials:
    ```bash
    ./scripts/test-in-docker.sh
