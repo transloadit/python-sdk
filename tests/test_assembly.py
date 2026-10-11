@@ -331,6 +331,10 @@ class AssemblyTest(unittest.TestCase):
                 return_value=rate_limited,
             ) as get_mock:
                 with mock.patch("transloadit.assembly.sleep"):
-                    with self.assertRaisesRegex(RuntimeError, "polling exhausted"):
+                    with self.assertRaisesRegex(RuntimeError, "polling exhausted") as caught:
                         self.assembly.create(wait=True, resumable=False, retries=1)
+        self.assertEqual(caught.exception.assembly_url, initial_response.data["assembly_ssl_url"])
+        self.assertIs(caught.exception.assembly_response, initial_response)
+        self.assertIs(caught.exception.last_response, rate_limited)
+        self.assertIn(initial_response.data["assembly_ssl_url"], str(caught.exception))
         self.assertEqual(get_mock.call_count, 2)

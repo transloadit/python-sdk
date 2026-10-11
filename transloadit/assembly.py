@@ -4,6 +4,7 @@ from time import sleep
 from tusclient import client as tus
 
 from . import optionbuilder
+from .response import AssemblyPollingError
 from .upload import get_upload_filename
 
 
@@ -113,7 +114,7 @@ class Assembly(optionbuilder.OptionBuilder):
             - retries (Optional[int]): In the event of an upload failure, this specifies how many
                 more times the upload should be retried before crying for help. This option is only
                 available if 'resumable' is set to 'True'. Defaults to 3 if not specified.
-                Also caps consecutive status rate limits when wait=True; exhaustion raises RuntimeError.
+                Also caps consecutive status rate limits when wait=True; exhaustion raises AssemblyPollingError with recovery details.
         """
         data = self.get_options()
         file_positions, missing_file_positions = self._snapshot_file_positions()
@@ -175,7 +176,7 @@ class Assembly(optionbuilder.OptionBuilder):
                     if self._rate_limit_reached(poll_data):
                         if remaining_rate_limit_retries <= 0:
                             # Bounded retries must not return an unfinished Assembly as wait=True success.
-                            raise RuntimeError("Assembly status polling exhausted the rate-limit retry budget.")
+                            raise AssemblyPollingError(assembly_url, response, poll_response)
                         remaining_rate_limit_retries -= 1
                     else:
                         remaining_rate_limit_retries = poll_retries

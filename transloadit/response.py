@@ -1,7 +1,13 @@
+from enum import Enum
 from functools import wraps
 
 
-_MISSING = object()
+class _Missing(Enum):
+    # Preserve sentinel identity when responses cross process/serialization boundaries.
+    VALUE = 0
+
+
+_MISSING = _Missing.VALUE
 
 
 class Response:
@@ -77,6 +83,26 @@ class Response:
         if self._response is None:
             return None
         return self._response.headers
+
+
+class AssemblyPollingError(RuntimeError):
+    """Polling stopped after repeated rate limits; the Assembly may still be running.
+
+    ``assembly_url`` can be passed to get_assembly or cancel_assembly.
+    ``assembly_response`` contains the initial creation response, and
+    ``last_response`` contains the final rate-limit response.
+    """
+
+    def __init__(self, assembly_url, assembly_response, last_response):
+        super().__init__(
+            f"Assembly status polling exhausted the rate-limit retry budget: {assembly_url}"
+        )
+        self.assembly_url = assembly_url
+        self.assembly_response = assembly_response
+        self.last_response = last_response
+
+    def __reduce__(self):
+        return type(self), (self.assembly_url, self.assembly_response, self.last_response)
 
 
 def as_response(func):

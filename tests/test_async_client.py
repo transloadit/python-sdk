@@ -1385,8 +1385,12 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                     new=mock.AsyncMock(return_value=rate_limited),
                 ) as get_mock:
                     with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
-                        with self.assertRaisesRegex(RuntimeError, "polling exhausted"):
+                        with self.assertRaisesRegex(RuntimeError, "polling exhausted") as caught:
                             await assembly.create(wait=True, resumable=False, retries=1)
+        self.assertEqual(caught.exception.assembly_url, initial.data["assembly_ssl_url"])
+        self.assertIs(caught.exception.assembly_response, initial)
+        self.assertIs(caught.exception.last_response, rate_limited)
+        self.assertIn(initial.data["assembly_ssl_url"], str(caught.exception))
         post_mock.assert_awaited_once()
         self.assertEqual(
             get_mock.await_args_list,

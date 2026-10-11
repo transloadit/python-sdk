@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from types import MappingProxyType
 
 import aiohttp
+import requests
 from requests.structures import CaseInsensitiveDict
 
 from . import __version__
@@ -195,7 +196,10 @@ class AsyncRequest:
         url = self._get_full_url(path)
         query = self._to_request_payload(url, params)
         if not should_sign_api_url(url, self.transloadit.service):
-            query = self._normalize_payload(query or {})
+            # Preparing a URL performs no I/O and preserves Requests' query semantics
+            # for mappings, repeated pairs, strings, bytes and iterable values.
+            url = requests.Request("GET", url, params=query).prepare().url
+            query = None
         async with self._api_session(url) as session, session.get(
             url,
             params=query,

@@ -74,7 +74,7 @@ Request-handling changes to account for when upgrading:
 - Assembly status/cancellation uses credential-free requests to trusted Assembly URLs. Default Transloadit clients reject foreign destinations; explicitly configured services retain their worker hosts.
 - HTTP redirects are returned to the caller instead of followed automatically. Invalid service URLs and empty/dot-segment Template IDs raise ``ValueError``.
 - Template creation sends steps inside the ``template`` object. When combining a ``template`` option with ``add_step``, supply an object rather than a serialized JSON string.
-- Non-JSON responses return text or bytes in ``Response.data``; empty bodies return an empty string. With ``wait=True``, exhausting consecutive status rate-limit retries raises ``RuntimeError`` instead of returning an unfinished Assembly. Normal API error responses still need an ``error`` check.
+- Non-JSON responses return text or bytes in ``Response.data``; empty bodies return an empty string. With ``wait=True``, exhausting consecutive status rate-limit retries raises ``AssemblyPollingError`` (a ``RuntimeError`` subclass). The Assembly may still be running: use the error's ``assembly_url`` to resume polling or cancel, and inspect ``assembly_response``/``last_response`` for creation and rate-limit details. Normal API error responses still need an ``error`` check.
 
 Source contributors use Poetry 2.4.1 with the new ``[project]`` metadata; isolated
 source builds require ``poetry-core>=2.2,<3``. Normal pip installation manages the

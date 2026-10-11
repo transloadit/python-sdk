@@ -1,7 +1,10 @@
+import pickle
 import unittest
 from unittest import mock
 
-from transloadit.response import Response, _MISSING
+import requests
+
+from transloadit.response import AssemblyPollingError, Response, _MISSING
 
 
 class ResponseTest(unittest.TestCase):
@@ -74,3 +77,27 @@ class ResponseTest(unittest.TestCase):
         self.assertEqual(response.data, {"ok": "async"})
         self.assertEqual(response.status_code, 202)
         self.assertEqual(response.headers, {"X-Test": "1"})
+
+
+    def test_sync_response_keeps_values_after_pickle(self):
+        raw = requests.Response()
+        raw.status_code = 429
+        raw._content = b'{"error":"RATE_LIMIT_REACHED"}'
+        raw.headers = {"Retry-After": "1"}
+        recovered = pickle.loads(pickle.dumps(Response(raw)))
+        self.assertEqual(recovered.data, {"error": "RATE_LIMIT_REACHED"})
+        self.assertEqual(recovered.status_code, 429)
+        self.assertEqual(recovered.headers["Retry-After"], "1")
+
+    def test_polling_error_keeps_recovery_details_after_pickle(self):
+        url = "https://api2-region.transloadit.com/assemblies/test"
+        created = Response(data={"assembly_id": "test"}, status_code=200, headers={})
+        last = Response(data={"error": "RATE_LIMIT_REACHED"}, status_code=429, headers={})
+        original = AssemblyPollingError(url, created, last)
+        recovered = pickle.loads(pickle.dumps(original))
+        self.assertIsInstance(recovered, RuntimeError)
+        self.assertEqual(recovered.assembly_url, url)
+        self.assertEqual(recovered.assembly_response.data, created.data)
+        self.assertEqual(recovered.last_response.data, last.data)
+        self.assertEqual(recovered.last_response.status_code, 429)
+        self.assertEqual(str(recovered), str(original))

@@ -4,6 +4,7 @@ import math
 from tusclient import client as tus
 
 from . import optionbuilder
+from .response import AssemblyPollingError
 from .upload import get_upload_filename, run_upload_worker
 
 
@@ -89,7 +90,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         """
         Save/Submit the assembly for processing.
 
-        With wait=True, exhausted consecutive status rate-limit retries raise RuntimeError.
+        With wait=True, exhausted consecutive status rate-limit retries raise AssemblyPollingError with recovery details.
 
         Resumable uploads use a tuspy worker thread. Cancellation waits for that
         upload batch, including retries, to finish before releasing caller-owned
@@ -156,7 +157,7 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                     if self._rate_limit_reached(poll_data):
                         if remaining_rate_limit_retries <= 0:
                             # Bounded retries must not return an unfinished Assembly as wait=True success.
-                            raise RuntimeError("Assembly status polling exhausted the rate-limit retry budget.")
+                            raise AssemblyPollingError(assembly_url, response, poll_response)
                         remaining_rate_limit_retries -= 1
                     else:
                         remaining_rate_limit_retries = poll_retries

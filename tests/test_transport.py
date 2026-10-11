@@ -322,16 +322,23 @@ def test_delete_template_preserves_empty_body_and_json_null(mode, template_id, e
 
 
 @pytest.mark.parametrize("mode", ["sync", "async"])
-def test_unsigned_get_encodes_booleans_omits_none_and_repeats_lists(mode):
+@pytest.mark.parametrize("params,expected", [
+    ({"enabled": True, "unused": None, "ids": [1, None, 2]}, [("enabled", "True"), ("ids", "1"), ("ids", "2")]),
+    ([("a", "1"), ("a", "2")], [("a", "1"), ("a", "2")]),
+    ("a=x%2Fy&b=two+words", [("a", "x/y"), ("b", "two words")]),
+    ({"b": b"x"}, [("b", "x")]),
+    ({"s": {1, 2}}, [("s", "1"), ("s", "2")]),
+    ({"nested": {"key": "value"}}, [("nested", "key")]),
+])
+def test_unsigned_get_preserves_requests_parameter_encoding(mode, params, expected):
     async def scenario():
         async with wire_client(mode) as (client, server):
             client.service = "https://api2.transloadit.com"
-            params = {"enabled": True, "unused": None, "ids": [1, None, 2]}
             if mode == "async":
                 response = await client.request.get(server.url + "/unsigned", params=params)
             else:
                 response = await asyncio.to_thread(client.request.get, server.url + "/unsigned", params=params)
             assert response.status_code == 200
-            assert server.requests[-1]["query_items"] == [("enabled", "True"), ("ids", "1"), ("ids", "2")]
+            assert server.requests[-1]["query_items"] == expected
             assert "signature" not in server.requests[-1]["query"]
     asyncio.run(scenario())
