@@ -29,7 +29,7 @@ dependencies = [
     "aiohttp>=3.13.5,<4",
     "requests>=2.33,<3",
     "tuspy>=1.0.0,<2.0.0",
-    "urllib3>=2.7,<3",
+    "urllib3>=2.8.0,<3",
 ]
 
 [project.urls]
