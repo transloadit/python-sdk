@@ -11,6 +11,7 @@ import requests_mock
 
 from . import request_body_matcher
 from transloadit.client import Transloadit
+from transloadit.response import Response
 
 
 def get_expected_url(params):
@@ -62,6 +63,11 @@ class ClientTest(unittest.TestCase):
         if expected_url is not None:
             self.assertEqual(expected_url, url, message or 'URL should match Node.js reference implementation')
 
+    def test_rejects_invalid_service_url(self):
+        for service in ("", "   ", "https://", "ftp://api2.transloadit.com"):
+            with self.assertRaises(ValueError):
+                Transloadit("key", "secret", service=service)
+
     @requests_mock.Mocker()
     def test_get_assembly(self, mock):
         id_ = "abcdef12345"
@@ -71,6 +77,53 @@ class ClientTest(unittest.TestCase):
         response = self.transloadit.get_assembly(assembly_id=id_)
         self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
         self.assertEqual(response.data["assembly_id"], "abcdef12345")
+
+    def test_assembly_urls_are_trusted_and_unauthenticated(self):
+        with mock.patch.object(self.transloadit.request, "public") as request_mock:
+            for method in (self.transloadit.get_assembly, self.transloadit.cancel_assembly):
+                with self.assertRaisesRegex(ValueError, "untrusted Assembly URL"):
+                    method(assembly_url="https://example.com/assemblies/abc123")
+            request_mock.assert_not_called()
+            self.transloadit.get_assembly(
+                assembly_url="https://api2-region.transloadit.com/assemblies/abc123",
+            )
+        request_mock.assert_called_once_with(
+            "GET", "https://api2-region.transloadit.com/assemblies/abc123", params=None
+        )
+
+
+    def test_quotes_path_ids(self):
+        with mock.patch.object(self.transloadit, '_request_assembly_url') as assembly_mock:
+            with mock.patch.object(self.transloadit.request, 'get') as get_mock:
+                self.transloadit.get_assembly(assembly_id='assembly/with?chars')
+                self.transloadit.get_template('template/with?chars')
+
+        self.assertEqual(
+            get_mock.call_args_list,
+            [mock.call('/templates/template%2Fwith%3Fchars')],
+        )
+        self.assertEqual(
+            assembly_mock.call_args_list,
+            [mock.call('/assemblies/assembly%2Fwith%3Fchars', 'GET')],
+        )
+
+    def test_rejects_invalid_template_ids(self):
+        invalid_ids = ("", None, ".", "..")
+        with mock.patch.object(self.transloadit.request, "get"):
+            for template_id in invalid_ids:
+                with self.assertRaises(ValueError):
+                    self.transloadit.get_template(template_id)
+
+        with mock.patch.object(self.transloadit.request, "put"):
+            for template_id in invalid_ids:
+                with self.assertRaises(ValueError):
+                    self.transloadit.update_template(template_id, {"name": "foo"})
+
+        with mock.patch.object(self.transloadit.request, "delete"):
+            for template_id in invalid_ids:
+                with self.assertRaises(ValueError):
+                    self.transloadit.delete_template(template_id)
+
 
     @requests_mock.Mocker()
     def test_list_assemblies(self, mock):
@@ -97,11 +150,11 @@ class ClientTest(unittest.TestCase):
     def test_get_template(self, mock):
         id_ = "abcdef12345"
         url = f"{self.transloadit.service}/templates/{id_}"
-        mock.get(url, text='{"ok": "TEMPLATE_FOUND", "template_id": "abcdef12345"}')
+        mock.get(url, text='{"ok": "TEMPLATE_FOUND", "id": "abcdef12345"}')
 
         response = self.transloadit.get_template(id_)
         self.assertEqual(response.data["ok"], "TEMPLATE_FOUND")
-        self.assertEqual(response.data["template_id"], "abcdef12345")
+        self.assertEqual(response.data["id"], "abcdef12345")
 
     @requests_mock.Mocker()
     def test_list_templates(self, mock):
@@ -119,13 +172,13 @@ class ClientTest(unittest.TestCase):
         sub_body = '"name": "foo_bar"'
         mock.put(
             url,
-            text='{"ok": "TEMPLATE_UPDATED", "template_id": "abcdef12345"}',
+            text='{"ok": "TEMPLATE_UPDATED", "id": "abcdef12345"}',
             additional_matcher=request_body_matcher(urllib.parse.quote_plus(sub_body)),
         )
 
         response = self.transloadit.update_template(id_, {"name": "foo_bar"})
         self.assertEqual(response.data["ok"], "TEMPLATE_UPDATED")
-        self.assertEqual(response.data["template_id"], "abcdef12345")
+        self.assertEqual(response.data["id"], "abcdef12345")
 
     @requests_mock.Mocker()
     def test_delete_tempalte(self, mock):
@@ -274,3 +327,19 @@ class ClientTest(unittest.TestCase):
         # For parity test, set the exact expiry time to match Node.js
         params['expire_at_ms'] = expiry
         self.assert_parity_with_node(url, params)
+
+    def test_get_signed_smart_cdn_url_rejects_invalid_workspace_and_reserved_params(self):
+        client = Transloadit("test-key", "test-secret")
+
+        for workspace in ("", "-workspace", "workspace-", "Acme Workspace", "bad.workspace"):
+            with self.assertRaises(ValueError):
+                client.get_signed_smart_cdn_url(workspace, "template", "file.jpg")
+
+        for reserved_key in ("auth_key", "exp", "sig"):
+            with self.assertRaises(ValueError):
+                client.get_signed_smart_cdn_url(
+                    "workspace",
+                    "template",
+                    "file.jpg",
+                    {reserved_key: "override"},
+                )

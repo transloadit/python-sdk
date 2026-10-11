@@ -127,8 +127,8 @@ jobs:
             exit 1
           fi
 
-      - name: Run E2E upload test
+      - name: Run E2E tests and examples
         env:
           TEST_NODE_PARITY: 0
         run: |
-          poetry run pytest tests/test_e2e_upload.py -q --maxfail=1 --no-cov
+          poetry run pytest tests/test_e2e_upload.py tests/test_examples.py -q --maxfail=1 --no-cov

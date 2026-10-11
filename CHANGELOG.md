@@ -1,13 +1,7 @@
 ### 2.0.0 / Unreleased ###
-* **Breaking Change**: Python 3.9, 3.10, and 3.11 are no longer supported. Installing 2.0 requires Python 3.12 or newer; upgrade the interpreter before upgrading the SDK. Applications that must stay on those older interpreters can pin `pytransloadit<2` (the latest 1.x release is 1.0.4).
-* **Breaking Change**: Runtime dependencies now require `requests>=2.33,<3` and `urllib3>=2.7,<3`. Remove or update older pins in application requirements/constraints and regenerate the application lockfile; incompatible pins will prevent installation.
-* The synchronous client API, imports, Assembly creation/polling, uploads, and Smart CDN signing remain compatible with 1.0.4 on supported interpreters. Asyncio support is tracked separately in #57 and is not part of 2.0.
-* The dependency refresh already released in 1.0.4 remains available to 1.x users; 2.0 removes the old-interpreter lockfile variants and requires the newer HTTP stack on every supported runtime.
-* Updated development and documentation tooling, including `pytest` 9.0.3, `Sphinx` 9.1, `sphinx-autobuild` 2025.8, `coverage` 7.14, `tox` 4.54, and `requests-mock` 1.12.
-* Updated CI and local Docker test coverage to a representative Python 3.12, 3.13, and 3.14 matrix.
-* Migrated package metadata to the modern `[project]` format used by Poetry 2.
-* Source contributors need Poetry 2.4.1 for the documented Docker/CI toolchain; isolated package builds require `poetry-core>=2.2,<3`. Normal `pip` installation installs the build backend automatically when needed.
-* Refreshed GitHub Actions, release documentation, and Sphinx docs that still referenced older runtime/tooling assumptions.
+* Added `AsyncTransloadit` with asyncio support for the existing synchronous client's Assembly, Template and billing methods, plus Smart CDN URL signing. Polling uses `asyncio.sleep`; resumable uploads run tuspy in worker threads.
+* **Breaking Change**: Python 3.12 or newer is required. Upgrade development, CI and deployment interpreters before installing 2.0. Applications that need Python 3.9–3.11 can pin `pytransloadit<2` (latest 1.x: 1.0.4).
+* **Upgrade notes**: Update application constraints for `requests>=2.33,<3` and `urllib3>=2.7,<3`, then regenerate your lockfile. Existing synchronous imports and methods remain available; asyncio applications can use `async with AsyncTransloadit(...)` and await network operations. See README for request-handling corrections, including explicit polling retry exhaustion, trusted Assembly URLs, redirect handling and Smart CDN validation/boolean serialization. Keep file context managers open around awaited uploads; cancellation waits for active file reads and resumable workers to finish. Resumable transfers do not inherit an injected aiohttp session's proxy/TLS settings. Source contributors use Poetry 2.4.1 with `[project]` metadata; isolated source builds require `poetry-core>=2.2,<3`.
 
 ### 1.0.4 / 2026-05-20 ###
 * Refreshed locked runtime and development dependencies, including `aiohttp` 3.13.5, `idna` 3.15, `pygments` 2.20.0, Python-version-specific `requests` updates, and `tuspy` 1.1.0.

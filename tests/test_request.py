@@ -1,3 +1,4 @@
+import json
 import unittest
 import urllib.parse
 
@@ -37,6 +38,52 @@ class RequestTest(unittest.TestCase):
 
         response = self.request.post("/foo", data={"foo": "bar"})
         self.assertEqual(response.data["ok"], "it works")
+
+    def test_payload_preserves_custom_auth_constraints(self):
+        payload = self.request._to_payload(
+            {
+                "auth": {
+                    "max_size": 1024,
+                    "referer": "https://example.com",
+                },
+                "foo": "bar",
+            }
+        )
+
+        params = json.loads(payload["params"])
+        self.assertEqual(params["auth"]["key"], "key")
+        self.assertIn("expires", params["auth"])
+        self.assertEqual(params["auth"]["max_size"], 1024)
+        self.assertEqual(params["auth"]["referer"], "https://example.com")
+
+    def test_payload_rejects_malformed_auth_constraints(self):
+        with self.assertRaises(ValueError):
+            self.request._to_payload({"auth": "not-a-dict"})
+
+    def test_full_url_allows_explicit_absolute_urls(self):
+        self.assertEqual(
+            self.request._get_full_url(f"{self.transloadit.service}/foo"),
+            f"{self.transloadit.service}/foo",
+        )
+        self.assertEqual(
+            self.request._get_full_url("https://api2-region.transloadit.com/foo"),
+            "https://api2-region.transloadit.com/foo",
+        )
+        self.assertEqual(
+            self.request._get_full_url("https://example.com/foo"),
+            "https://example.com/foo",
+        )
+
+    @requests_mock.Mocker()
+    def test_external_absolute_url_does_not_receive_signed_payload(self, mock):
+        url = "https://example.com/foo"
+        mock.get(url, text='{"ok": true}')
+
+        response = self.request.get(url)
+
+        self.assertTrue(response.data["ok"])
+        self.assertNotIn("params", mock.last_request.qs)
+        self.assertNotIn("signature", mock.last_request.qs)
 
     @requests_mock.Mocker()
     def test_put(self, mock):

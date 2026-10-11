@@ -1,12 +1,10 @@
 import typing
-import hmac
-import hashlib
-import time
-from urllib.parse import urlencode, quote_plus
-
-from typing import Optional, Union, List
+from typing import Optional
+from urllib.parse import quote
 
 from . import assembly, request, template
+from .api_url import is_transloadit_api_host, normalize_service_url, require_path_id
+from .smart_cdn import URL_PARAM_VALUES, build_signed_smart_cdn_url
 
 if typing.TYPE_CHECKING:
     from requests import Response
@@ -41,10 +39,7 @@ class Transloadit:
             service: str = "https://api2.transloadit.com",
             duration: int = 300,
     ):
-        if not service.startswith(("http://", "https://")):
-            service = "https://" + service
-
-        self.service = service
+        self.service = normalize_service_url(service)
         self.auth_key = auth_key
         self.auth_secret = auth_secret
         self.duration = duration
@@ -56,6 +51,70 @@ class Transloadit:
         a new assembly.
         """
         return assembly.Assembly(self, options=params)
+
+    def _quote_path_segment(self, value: str) -> str:
+        value = str(value)
+        if value in (".", ".."):
+            raise ValueError("Path parameters cannot be dot segments.")
+
+        return quote(value, safe="")
+
+    def _request_assembly_url(self, url, method, params=None):
+        from urllib.parse import urlparse
+
+        if "://" in url and not url.startswith(("http://", "https://")):
+            raise ValueError("Invalid Assembly URL.")
+        candidate_url = (
+            url
+            if url.startswith(("http://", "https://"))
+            else self.service.rstrip("/") + "/" + url.lstrip("/")
+        )
+        try:
+            candidate = urlparse(candidate_url)
+            if (candidate.scheme == "http" and candidate.port in {None, 80}
+                    and candidate.username is None and candidate.password is None
+                    and is_transloadit_api_host(candidate.hostname)):
+                # Preserve the API's legacy assembly_url field without plain HTTP.
+                candidate = candidate._replace(scheme="https", netloc=candidate.hostname)
+                candidate_url = candidate.geturl()
+            configured = urlparse(self.service)
+            candidate_port = candidate.port or (443 if candidate.scheme == "https" else 80)
+            configured_port = configured.port or (443 if configured.scheme == "https" else 80)
+        except ValueError as error:
+            raise ValueError("Invalid Assembly URL.") from error
+
+        candidate_hostname = (candidate.hostname or "").lower()
+        configured_hostname = (configured.hostname or "").lower()
+        has_url_credentials = candidate.username is not None or candidate.password is not None
+        configured_origin = (
+            not has_url_credentials
+            and candidate.scheme == configured.scheme
+            and candidate_hostname == configured_hostname
+            and candidate_port == configured_port
+        )
+        configured_https_host = (
+            not has_url_credentials
+            and candidate.scheme == "https"
+            and candidate_port == 443
+            and candidate_hostname != ""
+            and candidate_hostname == configured_hostname
+        )
+        api2_cell = (
+            not has_url_credentials
+            and candidate.scheme == "https"
+            and candidate_port == 443
+            and is_transloadit_api_host(candidate_hostname)
+        )
+        # Explicit custom/Gateway services retain their legacy worker origins.
+        # These are capability requests: session account credentials stay isolated.
+        custom_service = not is_transloadit_api_host(configured_hostname)
+        custom_destination = custom_service and not has_url_credentials and bool(candidate_hostname) and candidate.scheme in {"http", "https"}
+        if not (configured_origin or configured_https_host or api2_cell or custom_destination):
+            raise ValueError("Refusing to request an untrusted Assembly URL.")
+        if method not in {"GET", "DELETE"}:
+            raise ValueError(f"Unsupported Assembly URL method: {method}")
+
+        return self.request.public(method, candidate_url, params=params)
 
     def get_assembly(self, assembly_id: str = None, assembly_url: str = None):
         """
@@ -71,8 +130,8 @@ class Transloadit:
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
-        return self.request.get(url)
+        url = assembly_url if assembly_url else f"/assemblies/{self._quote_path_segment(assembly_id)}"
+        return self._request_assembly_url(url, "GET")
 
     def list_assemblies(self, params: dict = None):
         """
@@ -101,8 +160,8 @@ class Transloadit:
         if not (assembly_id or assembly_url):
             raise ValueError("Either 'assembly_id' or 'assembly_url' cannot be None.")
 
-        url = assembly_url if assembly_url else f"/assemblies/{assembly_id}"
-        return self.request.delete(url)
+        url = assembly_url if assembly_url else f"/assemblies/{self._quote_path_segment(assembly_id)}"
+        return self._request_assembly_url(url, "DELETE")
 
     def get_template(self, template_id: str):
         """
@@ -113,7 +172,8 @@ class Transloadit:
 
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.get(f"/templates/{template_id}")
+        template_id = require_path_id(template_id, "template_id")
+        return self.request.get(f"/templates/{self._quote_path_segment(template_id)}")
 
     def list_templates(self, params: Optional[dict] = None):
         """
@@ -128,16 +188,6 @@ class Transloadit:
         """
         return self.request.get("/templates", params=params)
 
-    def new_template(self, name: str, params: Optional[dict] = None) -> template.Template:
-        """
-        Return an instance of <transloadit.template.Template> which would be used to create
-        a new template.
-
-        :Args:
-            - name (str): Name of the template.
-        """
-        return template.Template(self, name, options=params)
-
     def update_template(self, template_id: str, data: dict):
         """
         Update the template specified by the 'template_id'.
@@ -148,7 +198,8 @@ class Transloadit:
 
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.put(f"/templates/{template_id}", data=data)
+        template_id = require_path_id(template_id, "template_id")
+        return self.request.put(f"/templates/{self._quote_path_segment(template_id)}", data=data)
 
     def delete_template(self, template_id: str):
         """
@@ -159,7 +210,8 @@ class Transloadit:
 
         Return an instance of <transloadit.response.Response>
         """
-        return self.request.delete(f"/templates/{template_id}")
+        template_id = require_path_id(template_id, "template_id")
+        return self.request.delete(f"/templates/{self._quote_path_segment(template_id)}")
 
     def get_bill(self, month: int, year: int):
         """
@@ -173,13 +225,23 @@ class Transloadit:
         """
         return self.request.get(f"/bill/{year}-{month:02d}")
 
+    def new_template(self, name: str, params: Optional[dict] = None) -> template.Template:
+        """
+        Return an instance of <transloadit.template.Template> which would be used to create
+        a new template.
+
+        :Args:
+            - name (str): Name of the template.
+        """
+        return template.Template(self, name, options=params)
+
     def get_signed_smart_cdn_url(
         self,
         workspace: str,
         template: str,
         input: str,
-        url_params: Optional[dict[str, Union[str, int, float, bool, List[Union[str, int, float, bool]], None]]] = None,
-        expires_at_ms: Optional[int] = None
+        url_params: Optional[dict[str, URL_PARAM_VALUES]] = None,
+        expires_at_ms: Optional[int] = None,
     ) -> str:
         """
         Construct a signed Smart CDN URL.
@@ -198,38 +260,12 @@ class Transloadit:
         :Raises:
             ValueError: If url_params contains values that are not strings, numbers, booleans, arrays, or None
         """
-        workspace_slug = quote_plus(workspace)
-        template_slug = quote_plus(template)
-        input_field = quote_plus(input)
-
-        expiry = expires_at_ms if expires_at_ms is not None else int(time.time() * 1000) + 60 * 60 * 1000  # 1 hour default
-
-        params = []
-        if url_params:
-            for k, v in url_params.items():
-                if v is None:
-                    continue  # Skip None values
-                elif isinstance(v, (str, int, float, bool)):
-                    params.append((k, str(v)))
-                elif isinstance(v, (list, tuple)):
-                    params.append((k, [str(vv) for vv in v]))
-                else:
-                    raise ValueError(f"URL parameter values must be strings, numbers, booleans, arrays, or None. Got {type(v)} for {k}")
-
-        params.append(("auth_key", self.auth_key))
-        params.append(("exp", str(expiry)))
-
-        # Sort params alphabetically by key
-        sorted_params = sorted(params, key=lambda x: x[0])
-        query_string = urlencode(sorted_params, doseq=True)
-
-        string_to_sign = f"{workspace_slug}/{template_slug}/{input_field}?{query_string}"
-        algorithm = "sha256"
-
-        signature = algorithm + ":" + hmac.new(
-            self.auth_secret.encode("utf-8"),
-            string_to_sign.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest()
-
-        return f"https://{workspace_slug}.tlcdn.com/{template_slug}/{input_field}?{query_string}&sig={quote_plus(signature)}"
+        return build_signed_smart_cdn_url(
+            auth_key=self.auth_key,
+            auth_secret=self.auth_secret,
+            workspace=workspace,
+            template=template,
+            input=input,
+            url_params=url_params,
+            expires_at_ms=expires_at_ms,
+        )
