@@ -92,10 +92,6 @@ class ClientTest(unittest.TestCase):
         )
 
 
-
-
-
-
     def test_quotes_path_ids(self):
         with mock.patch.object(self.transloadit, '_request_assembly_url') as assembly_mock:
             with mock.patch.object(self.transloadit.request, 'get') as get_mock:
@@ -127,7 +123,6 @@ class ClientTest(unittest.TestCase):
             for template_id in invalid_ids:
                 with self.assertRaises(ValueError):
                     self.transloadit.delete_template(template_id)
-
 
 
     @requests_mock.Mocker()

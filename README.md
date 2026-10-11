@@ -33,10 +33,22 @@ application pins or constraints and regenerate your lockfile before upgrading:
 python -m pip install --upgrade 'pytransloadit>=2,<3'
 ```
 
-The synchronous client API and imports remain compatible with 1.0.4 on supported
-interpreters. SDK 2.0 adds the separate `AsyncTransloadit` client for asyncio
+The synchronous imports and methods remain available on supported interpreters.
+SDK 2.0 adds the separate `AsyncTransloadit` client for asyncio
 applications. The dependency refresh shipped in 1.0.4 does not require upgrading
 to 2.0.
+
+Request-handling changes to account for when upgrading:
+
+- Smart CDN boolean parameters use `true`/`false` to match the reference CLI. Workspace slugs must be DNS-safe; `auth_key`, `exp` and `sig` are reserved query keys.
+- Assembly status/cancellation uses credential-free requests to trusted Assembly URLs. Default Transloadit clients reject foreign destinations; explicitly configured services retain their worker hosts.
+- HTTP redirects are returned to the caller instead of followed automatically. Invalid service URLs and empty/dot-segment Template IDs raise `ValueError`.
+- Template creation sends steps inside the `template` object. When combining a `template` option with `add_step`, supply an object rather than a serialized JSON string.
+- Non-JSON responses return text or bytes in `Response.data`; empty bodies return an empty string. With `wait=True`, exhausting consecutive status rate-limit retries raises `RuntimeError` instead of returning an unfinished Assembly. Normal API error responses still need an `error` check.
+
+Source contributors use Poetry 2.4.1 with the new `[project]` metadata; isolated
+source builds require `poetry-core>=2.2,<3`. Normal pip installation manages the
+build backend automatically.
 
 ## Usage
 
@@ -75,6 +87,11 @@ asyncio.run(main())
 ```
 
 The async client keeps polling on `asyncio.sleep`. Resumable uploads still use the existing TUS client, but are offloaded to worker threads so the event loop stays responsive.
+
+An injected aiohttp session configures Assembly creation and polling. Resumable
+file transfers use tuspy's separate Requests transport and do not inherit that
+session's explicit proxy or TLS connector settings; configure the Requests
+environment for those transfers.
 
 Cancellation of a resumable upload waits for the tuspy upload batch, including
 retries, to finish before releasing your files. Multipart cancellation waits for

@@ -35,11 +35,18 @@ class WireServer:
                 fields = {key: values[0] for key, values in parse_qs(data.decode()).items()}
         self.requests.append({"method": request.method, "path": request.path, "body": data,
                               "filenames": filenames, "fields": fields, "query": dict(request.query),
+                              "query_items": list(request.query.items()),
                               "headers": CaseInsensitiveDict(request.headers)})
         if request.method == "GET" and request.path == "/assemblies/" + ASSEMBLY_ID:
             return web.json_response({"ok": "ASSEMBLY_COMPLETED", "assembly_id": ASSEMBLY_ID})
         if request.method == "POST" and request.path == "/assemblies" and hasattr(self, "assembly_response"):
             return web.json_response(self.assembly_response)
+        if request.path == "/templates/empty":
+            return web.Response(status=204)
+        if request.path == "/templates/whitespace":
+            return web.Response(text=" \n")
+        if request.path == "/templates/json-null":
+            return web.json_response(None)
         return web.json_response({"ok": "OK"})
 
 
@@ -302,3 +309,29 @@ async def call(client, method, *args, **kwargs):
     if isinstance(client, AsyncTransloadit):
         return await operation(*args, **kwargs)
     return await asyncio.to_thread(operation, *args, **kwargs)
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+@pytest.mark.parametrize("template_id,expected", [("empty", ""), ("whitespace", " \n"), ("json-null", None)])
+def test_delete_template_preserves_empty_body_and_json_null(mode, template_id, expected):
+    async def scenario():
+        async with wire_client(mode) as (client, server):
+            response = await call(client, "delete_template", template_id)
+            assert response.data == expected
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_unsigned_get_encodes_booleans_omits_none_and_repeats_lists(mode):
+    async def scenario():
+        async with wire_client(mode) as (client, server):
+            client.service = "https://api2.transloadit.com"
+            params = {"enabled": True, "unused": None, "ids": [1, None, 2]}
+            if mode == "async":
+                response = await client.request.get(server.url + "/unsigned", params=params)
+            else:
+                response = await asyncio.to_thread(client.request.get, server.url + "/unsigned", params=params)
+            assert response.status_code == 200
+            assert server.requests[-1]["query_items"] == [("enabled", "True"), ("ids", "1"), ("ids", "2")]
+            assert "signature" not in server.requests[-1]["query"]
+    asyncio.run(scenario())

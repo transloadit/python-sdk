@@ -89,6 +89,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
         """
         Save/Submit the assembly for processing.
 
+        With wait=True, exhausted consecutive status rate-limit retries raise RuntimeError.
+
         Resumable uploads use a tuspy worker thread. Cancellation waits for that
         upload batch, including retries, to finish before releasing caller-owned
         files. Consequently, cancellation and timeout cleanup may take longer than
@@ -153,7 +155,8 @@ class AsyncAssembly(optionbuilder.OptionBuilder):
                 while not self._assembly_finished(poll_data):
                     if self._rate_limit_reached(poll_data):
                         if remaining_rate_limit_retries <= 0:
-                            return poll_response
+                            # Bounded retries must not return an unfinished Assembly as wait=True success.
+                            raise RuntimeError("Assembly status polling exhausted the rate-limit retry budget.")
                         remaining_rate_limit_retries -= 1
                     else:
                         remaining_rate_limit_retries = poll_retries

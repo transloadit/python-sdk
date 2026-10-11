@@ -289,7 +289,6 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         await self.server.close()
 
 
-
     async def test_async_client_methods_and_context_manager(self):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             response = await client.get_assembly(assembly_id="abc123")
@@ -460,7 +459,6 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                 await client.delete_template(template_id)
 
         self.assertEqual(session.calls, [])
-
 
 
     async def test_async_client_close_reopens_owned_session(self):
@@ -653,8 +651,6 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             assembly_url=f"{self.server.base_url}/assemblies/assembly-123"
         )
         sleep_mock.assert_awaited_once_with(0)
-
-
 
 
     def test_async_signed_smart_cdn_url_matches_sync_and_rejects_bad_types(self):
@@ -1358,7 +1354,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_async_assembly_wait_returns_last_poll_response_when_budget_exhausted(self):
+    async def test_async_assembly_wait_signals_poll_retry_exhaustion(self):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             assembly = client.new_assembly()
 
@@ -1389,9 +1385,8 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
                     new=mock.AsyncMock(return_value=rate_limited),
                 ) as get_mock:
                     with mock.patch("asyncio.sleep", new_callable=mock.AsyncMock) as sleep_mock:
-                        response = await assembly.create(wait=True, resumable=False, retries=1)
-
-        self.assertEqual(response.data["error"], "RATE_LIMIT_REACHED")
+                        with self.assertRaisesRegex(RuntimeError, "polling exhausted"):
+                            await assembly.create(wait=True, resumable=False, retries=1)
         post_mock.assert_awaited_once()
         self.assertEqual(
             get_mock.await_args_list,

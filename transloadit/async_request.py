@@ -175,7 +175,13 @@ class AsyncRequest:
 
     async def _read_response_data(self, response):
         try:
-            return await response.json(content_type=None)
+            data = await response.json(content_type=None)
+            if data is None:
+                # aiohttp maps empty/whitespace bodies to None; Requests returns their text.
+                text = await response.text()
+                if not text.strip():
+                    return text
+            return data
         except (aiohttp.ContentTypeError, json.JSONDecodeError, UnicodeDecodeError):
             try:
                 return await response.text()
@@ -187,9 +193,12 @@ class AsyncRequest:
         Makes an asynchronous HTTP GET request.
         """
         url = self._get_full_url(path)
+        query = self._to_request_payload(url, params)
+        if not should_sign_api_url(url, self.transloadit.service):
+            query = self._normalize_payload(query or {})
         async with self._api_session(url) as session, session.get(
             url,
-            params=self._to_request_payload(url, params),
+            params=query,
             **(await self._request_options(url)),
         ) as response:
             return Response(
