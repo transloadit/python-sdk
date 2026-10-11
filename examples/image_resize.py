@@ -1,12 +1,61 @@
-### A simple Transloadit assembly that changes the size of an image.
+"""Upload an image and resize it.
+
+Run from the repository root:
+
+    TRANSLOADIT_KEY=xxx TRANSLOADIT_SECRET=yyy poetry run python examples/image_resize.py
+"""
+
+import os
+from pathlib import Path
 
 from transloadit.client import Transloadit
 
-client = Transloadit("TRANSLOADIT_KEY", "TRANSLOADIT_SECRET")
-assembly = client.new_assembly()
-assembly.add_file(open("fixtures/lol_cat.jpg", "rb"))
-assembly.add_step("resize", "/image/resize", {"width": 70, "height": 70})
-response = assembly.create(wait=True)
 
-result_url = response.data.get("results").get("resize")[0].get("ssl_url")
-print("Your result:", result_url)
+def get_credentials():
+    key = os.getenv("TRANSLOADIT_KEY")
+    secret = os.getenv("TRANSLOADIT_SECRET")
+    if not key or not secret:
+        raise RuntimeError("Please set TRANSLOADIT_KEY and TRANSLOADIT_SECRET.")
+    return key, secret
+
+
+def get_example_image_path():
+    return Path(__file__).resolve().parent / "fixtures" / "lol_cat.jpg"
+
+
+def first_result_url(response_data, step_name):
+    results = (response_data.get("results") or {}).get(step_name) or []
+    if not results:
+        raise RuntimeError(f"No results found for step {step_name!r}: {response_data}")
+    url = results[0].get("ssl_url")
+    if not url:
+        raise RuntimeError(f"No result URL found for step {step_name!r}: {response_data}")
+    return url
+
+
+def main():
+    key, secret = get_credentials()
+    client = Transloadit(key, secret)
+    assembly = client.new_assembly()
+
+    with get_example_image_path().open("rb") as upload:
+        assembly.add_file(upload, "image")
+        assembly.add_step(
+            "resize",
+            "/image/resize",
+            {
+                "use": ":original",
+                "width": 120,
+                "height": 120,
+                "resize_strategy": "fit",
+                "format": "png",
+            },
+        )
+        response = assembly.create(wait=True, resumable=False)
+
+    print("Assembly:", response.data["assembly_ssl_url"])
+    print("Resized image:", first_result_url(response.data, "resize"))
+
+
+if __name__ == "__main__":
+    main()

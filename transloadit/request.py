@@ -1,13 +1,15 @@
+import copy
 import hashlib
 import hmac
 import json
-import copy
 from datetime import datetime, timedelta, timezone
 
 import requests
 
-from .response import as_response
 from . import __version__
+from .api_url import should_sign_api_url
+from .network import sync_network_options
+from .response import Response, as_response
 
 TIMEOUT = 60
 
@@ -40,11 +42,13 @@ class Request:
 
         Return an instance of <transloadit.response.Response>
         """
+        url = self._get_full_url(path)
         return requests.get(
-            self._get_full_url(path),
-            params=self._to_payload(params),
+            url,
+            params=self._to_request_payload(url, params),
             headers=self.HEADERS,
             timeout=TIMEOUT,
+            allow_redirects=False,
         )
 
     @as_response
@@ -62,19 +66,23 @@ class Request:
 
         Return an instance of <transloadit.response.Response>
         """
-        data = self._to_payload(data)
+        url = self._get_full_url(path)
+        data = self._to_request_payload(url, data)
         if extra_data:
+            if data is None:
+                data = {}
             data.update(extra_data)
         return requests.post(
-            self._get_full_url(path),
+            url,
             data=data,
             files=files,
             headers=self.HEADERS,
             timeout=TIMEOUT,
+            allow_redirects=False,
         )
 
     @as_response
-    def put(self, path, data=None):
+    def put(self, path, data=None, extra_data=None, files=None):
         """
         Makes a HTTP PUT request.
 
@@ -84,12 +92,17 @@ class Request:
 
         Return an instance of <transloadit.response.Response>
         """
-        data = self._to_payload(data)
+        url = self._get_full_url(path)
+        data = self._to_request_payload(url, data) or {}
+        if extra_data:
+            data.update(extra_data)
         return requests.put(
-            self._get_full_url(path),
+            url,
             data=data,
+            files=files,
             headers=self.HEADERS,
             timeout=TIMEOUT,
+            allow_redirects=False,
         )
 
     @as_response
@@ -103,23 +116,34 @@ class Request:
 
         Return an instance of <transloadit.response.Response>
         """
-        data = self._to_payload(data)
+        url = self._get_full_url(path)
+        data = self._to_request_payload(url, data)
         return requests.delete(
-            self._get_full_url(path),
+            url,
             data=data,
             headers=self.HEADERS,
             timeout=TIMEOUT,
+            allow_redirects=False,
         )
 
     def _to_payload(self, data):
         data = copy.deepcopy(data or {})
         expiry = datetime.now(timezone.utc) + timedelta(seconds=self.transloadit.duration)
-        data["auth"] = {
+        if "auth" in data and not isinstance(data["auth"], dict):
+            raise ValueError("auth must be a dictionary when provided.")
+        auth = data.get("auth") or {}
+        auth.update({
             "key": self.transloadit.auth_key,
             "expires": expiry.strftime("%Y/%m/%d %H:%M:%S+00:00"),
-        }
+        })
+        data["auth"] = auth
         json_data = json.dumps(data)
         return {"params": json_data, "signature": self._sign_data(json_data)}
+
+    def _to_request_payload(self, url, data):
+        if should_sign_api_url(url, self.transloadit.service):
+            return self._to_payload(data)
+        return copy.deepcopy(data) if data else None
 
     def _sign_data(self, message):
         hash_string = hmac.new(
@@ -132,3 +156,11 @@ class Request:
             return url
         else:
             return self.transloadit.service + url
+
+    def public(self, method, path, params=None, data=None):
+        with requests.Session() as session:
+            session.trust_env = False  # Do not borrow netrc credentials for Assembly capability URLs.
+            url = self._get_full_url(path)
+            raw = session.request(method, url, params=params, data=data,
+                                  headers=self.HEADERS, timeout=TIMEOUT, allow_redirects=False, **sync_network_options(url))
+            return Response(raw)

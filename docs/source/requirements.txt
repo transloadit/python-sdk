@@ -1,2 +1,2 @@
 pypandoc==1.17
-Sphinx==7.4.7
+Sphinx==9.1.0

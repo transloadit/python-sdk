@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION=3.14
 FROM python:${PYTHON_VERSION}-slim AS base
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -20,8 +20,8 @@ RUN apt-get update \
 
 RUN git lfs install --system
 
-# Install Node.js 20 (for Smart CDN parity tests) and supporting CLI tooling
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+# Install Node.js 24 (for Smart CDN parity tests) and supporting CLI tooling
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get update \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g transloadit \
@@ -29,6 +29,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 
 # Install Poetry so we match the GitHub Actions toolchain
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir poetry
+    && pip install --no-cache-dir poetry==2.4.1
 
 WORKDIR /workspace

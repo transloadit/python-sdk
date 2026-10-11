@@ -7,7 +7,7 @@ POETRY_CACHE_DIR="$CACHE_ROOT/pypoetry"
 PIP_CACHE_DIR="$CACHE_ROOT/pip"
 NPM_CACHE_DIR="$CACHE_ROOT/npm"
 HOME_DIR="$CACHE_ROOT/home"
-DEFAULT_MATRIX=("3.9" "3.10" "3.11" "3.12" "3.13")
+DEFAULT_MATRIX=("3.12" "3.13" "3.14")
 declare -a PYTHON_MATRIX=()
 declare -a CUSTOM_COMMAND=()
 
@@ -27,7 +27,7 @@ Environment:
 
 Examples:
   scripts/test-in-docker.sh
-  scripts/test-in-docker.sh --python 3.12
+  scripts/test-in-docker.sh --python 3.14
   scripts/test-in-docker.sh -- pytest tests/test_client.py
   SKIP_POETRY_RUN=1 scripts/test-in-docker.sh -- python -m pytest -k smartcdn
 EOF
@@ -52,13 +52,9 @@ ensure_docker() {
 }
 
 configure_platform() {
-  if [[ -z "${DOCKER_PLATFORM:-}" ]]; then
-    local arch
-    arch=$(uname -m)
-    if [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
-      DOCKER_PLATFORM=linux/amd64
-    fi
-  fi
+  # Docker should use its native platform by default. Set DOCKER_PLATFORM when
+  # an explicit cross-architecture run is needed.
+  :
 }
 
 parse_python_versions() {
@@ -107,7 +103,10 @@ parse_python_versions() {
     PYTHON_MATRIX=("${DEFAULT_MATRIX[@]}")
   fi
 
-  CUSTOM_COMMAND=("${custom_cmd[@]}")
+  CUSTOM_COMMAND=()
+  if [[ ${#custom_cmd[@]} -gt 0 ]]; then
+    CUSTOM_COMMAND=("${custom_cmd[@]}")
+  fi
 }
 
 build_image_for_version() {
@@ -146,6 +145,7 @@ run_for_version() {
     -e "HOME=$container_home"
     -e "PIP_CACHE_DIR=/workspace/$PIP_CACHE_DIR"
     -e "POETRY_CACHE_DIR=/workspace/$POETRY_CACHE_DIR"
+    -e "POETRY_VIRTUALENVS_IN_PROJECT=false"
     -e "NPM_CONFIG_CACHE=/workspace/$NPM_CACHE_DIR"
     -e "PYTHON_VERSION_UNDER_TEST=$version"
     -v "$PWD/$POETRY_CACHE_DIR":/workspace/"$POETRY_CACHE_DIR"
@@ -165,7 +165,7 @@ run_for_version() {
     fi
   done
 
-  if [[ "$version" == "3.12" && ${#CUSTOM_COMMAND[@]} -eq 0 ]]; then
+  if [[ "$version" == "3.14" && ${#CUSTOM_COMMAND[@]} -eq 0 ]]; then
     docker_args+=(-e TEST_NODE_PARITY=1)
   fi
 
@@ -178,7 +178,7 @@ run_for_version() {
       run_cmd="set -euo pipefail; poetry install; poetry run ${user_cmd}"
     fi
   else
-    if [[ "$version" == "3.12" ]]; then
+    if [[ "$version" == "3.14" ]]; then
       run_cmd='set -euo pipefail; poetry install; poetry run pytest --cov=transloadit --cov-report=xml --cov-report=json --cov-report=html --cov-report=term-missing --cov-fail-under=65 tests'
     else
       run_cmd='set -euo pipefail; poetry install; poetry run pytest tests'

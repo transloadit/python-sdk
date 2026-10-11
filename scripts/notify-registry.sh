@@ -44,13 +44,9 @@ ensure_docker() {
 }
 
 configure_platform() {
-  if [[ -z "${DOCKER_PLATFORM:-}" ]]; then
-    local arch
-    arch=$(uname -m)
-    if [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
-      DOCKER_PLATFORM=linux/amd64
-    fi
-  fi
+  # Docker should use its native platform by default. Set DOCKER_PLATFORM when
+  # an explicit cross-architecture run is needed.
+  :
 }
 
 run_outside_container() {
@@ -72,6 +68,7 @@ run_outside_container() {
     --user "$(id -u):$(id -g)"
     -e HOME=/workspace/$HOME_DIR
     -e POETRY_CACHE_DIR=/workspace/$POETRY_CACHE_DIR
+    -e POETRY_VIRTUALENVS_IN_PROJECT=false
     -e PIP_CACHE_DIR=/workspace/$PIP_CACHE_DIR
     -v "$PWD":/workspace
     -v "$PWD/$POETRY_CACHE_DIR":/workspace/"$POETRY_CACHE_DIR"
@@ -120,6 +117,7 @@ verify_repo_state() {
 
 verify_versions_consistent() {
   local version python_version header_version
+  local dry_run=${1:-0}
   version=$(poetry version -s)
   python_version=$(python -c "import transloadit; print(transloadit.__version__)")
   header_version=$(grep -oE 'python-sdk:[0-9]+\.[0-9]+\.[0-9]+' tests/test_request.py | tail -n1 | cut -d: -f2)
@@ -136,6 +134,11 @@ verify_versions_consistent() {
     err "CHANGELOG.md does not contain an entry for ${version}"
     exit 1
   fi
+  # Dry runs can build a prepared release before its release date is set.
+  if [[ "$dry_run" == "0" ]] && grep -Eq "^### ${version}[[:space:]/]+Unreleased([[:space:]/]|$)" CHANGELOG.md; then
+    err "CHANGELOG.md still marks ${version} as Unreleased. Set the release date before publishing."
+    exit 1
+  fi
 }
 
 publish_inside_container() {
@@ -148,9 +151,6 @@ publish_inside_container() {
         ;;
       --dry-run)
         dry_run=1
-        shift
-        ;;
-      --inside-container)
         shift
         ;;
       -h|--help)
@@ -173,7 +173,7 @@ publish_inside_container() {
   export POETRY_PYPI_TOKEN_PYPI="$PYPI_TOKEN"
 
   verify_repo_state
-  verify_versions_consistent
+  verify_versions_consistent "$dry_run"
 
   rm -rf dist
   poetry build
