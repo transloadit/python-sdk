@@ -53,8 +53,11 @@ def _add_resize_step(assembly, width=128, height=128):
 
 
 def _assert_e2e_image_resize(data, fixture_path, expected_field=None, expected_fields=None):
-    assembly_ssl_url = data.get("assembly_ssl_url") or data.get("assembly_url")
-    assembly_id = data.get("assembly_id")
+    assembly_ssl_url = data["assembly_ssl_url"]
+    assembly_id = data["assembly_id"]
+    assert assembly_id, data
+    assert assembly_ssl_url.startswith("https://"), data
+    assert data["assembly_url"], data
     print(f"[python-sdk][e2e] Assembly URL: {assembly_ssl_url} (id={assembly_id})")
     assert data.get("ok") == "ASSEMBLY_COMPLETED", data
 
@@ -98,22 +101,14 @@ def _assert_e2e_image_resize(data, fixture_path, expected_field=None, expected_f
 
 
 def _extract_template_id(data):
-    template_id = data.get("id") or data.get("template_id")
+    template_id = data.get("id")
     assert template_id, f"Template response did not contain an id: {data}"
     return template_id
 
 
-def _extract_template_name(data):
-    return data.get("name") or data.get("template_name")
-
-
-def _extract_template_content(data):
-    return data.get("content") or data.get("template_content") or data.get("template")
-
-
 def _assert_template(data, expected_name, expected_width):
-    assert _extract_template_name(data) == expected_name, data
-    content = _extract_template_content(data)
+    assert data["name"] == expected_name, data
+    content = data["content"]
     assert isinstance(content, dict), data
     steps = content.get("steps") or {}
     resize = steps.get("resize") or {}

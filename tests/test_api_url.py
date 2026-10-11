@@ -4,7 +4,7 @@ from transloadit.api_url import should_sign_api_url
 
 
 class ApiUrlTest(unittest.TestCase):
-    def test_regional_signing_follows_contract_hosts_and_https_port(self):
+    def test_regional_signing_requires_api_hosts_and_https_port(self):
         service = "https://api2.transloadit.com"
         for host in ("api2-x.other.transloadit.com", "api2-xn--example.transloadit.com", "api2-morven.transloadit.com:8443"):
             with self.subTest(host=host):

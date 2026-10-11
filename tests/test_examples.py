@@ -36,9 +36,66 @@ def test_examples_import_without_side_effects():
         runpy.run_path(str(example_path), run_name="__example_import__")
 
 
-def test_devdock_examples_import_without_side_effects():
-    for example_path in sorted(EXAMPLES_ROOT.glob("api2-devdock-*/main.py")):
-        runpy.run_path(str(example_path), run_name="__example_import__")
+@pytest.mark.parametrize(
+    "example_name",
+    ["assembly_with_template.py", "template_lifecycle.py", "async_template_lifecycle.py"],
+)
+def test_template_examples_require_documented_id(example_name):
+    namespace = runpy.run_path(str(EXAMPLES_ROOT / example_name), run_name="__example_import__")
+    extract_id = namespace["extract_template_id"]
+
+    assert extract_id({"id": "documented-id", "template_id": "alias-id"}) == "documented-id"
+    with pytest.raises(RuntimeError, match="did not contain an id"):
+        extract_id({"template_id": "alias-id"})
+
+
+@pytest.mark.parametrize(
+    "field, alias",
+    [
+        ("name", "template_name"),
+        ("content", "template_content"),
+        ("content", "template"),
+    ],
+)
+def test_template_e2e_assertion_rejects_response_aliases(field, alias):
+    namespace = runpy.run_path(str(REPO_ROOT / "tests" / "test_e2e_upload.py"))
+    data = {
+        "name": "resize",
+        "content": {"steps": {"resize": {"robot": "/image/resize", "width": 64}}},
+    }
+    namespace["_assert_template"](data, "resize", 64)
+    data[alias] = data.pop(field)
+
+    with pytest.raises(KeyError):
+        namespace["_assert_template"](data, "resize", 64)
+
+
+@pytest.mark.parametrize("missing_field", ["assembly_id", "assembly_ssl_url", "assembly_url"])
+def test_assembly_e2e_assertion_requires_documented_fields(missing_field):
+    namespace = runpy.run_path(str(REPO_ROOT / "tests" / "test_e2e_upload.py"))
+    data = {
+        "assembly_id": "assembly-id",
+        "assembly_ssl_url": "https://api2.transloadit.com/assemblies/assembly-id",
+        "assembly_url": "http://api2.transloadit.com/assemblies/assembly-id",
+        "ok": "ASSEMBLY_COMPLETED",
+        "uploads": [{"name": "fixture.jpg", "basename": "fixture"}],
+        "results": {
+            "resize": [
+                {"ssl_url": "https://example.com/image.png", "meta": {"width": 64, "height": 64}},
+            ],
+        },
+    }
+    namespace["_assert_e2e_image_resize"](data, Path("fixture.jpg"))
+    aliases = {
+        "assembly_id": "assemblyId",
+        "assembly_ssl_url": "assemblySslUrl",
+        "assembly_url": "assemblyUrl",
+    }
+    data[aliases[missing_field]] = data[missing_field]
+    del data[missing_field]
+
+    with pytest.raises(KeyError, match=missing_field):
+        namespace["_assert_e2e_image_resize"](data, Path("fixture.jpg"))
 
 
 def test_smart_cdn_example_runs_without_network():

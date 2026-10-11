@@ -83,70 +83,14 @@ requested deadline; keep file context managers open around the awaited call.
 
 If you do not use `async with`, call `await tl.aclose()` when you are done with the session.
 
-## API endpoint coverage
+## Client features
 
-Both clients expose all **44 documented API operations**: Assemblies and SSE,
-Templates, Template Credentials, auth keys and token issuance, DAM, statistics,
-Billing, job slots, Assembly Notifications, and the six raw TUS operations.
-See the [complete coverage table and generation instructions](docs/api-coverage.md).
-The five DAM operations marked alpha retain that status. The 16 separate-product
-routes deferred to 2.1 are tracked in [#60](https://github.com/transloadit/python-sdk/issues/60).
-
-Ordinary GET methods take `params`, and other methods take `data`, as dictionaries
-of the API's normalized request fields. Responses expose `.data`, `.status_code`
-and `.headers`. For example, `await tl.list_auth_keys()` retrieves auth keys.
-Check the endpoint reference for field names and required scopes. Signed requests
-remain the default. To use a bearer token, pass
-`bearer_token=token` to either client (the Auth Secret can be `None`).
-`issue_bearer_token(data)` supports the contract's client-credentials,
-authorization-code and refresh-token grants; omitted `grant_type` keeps the
-client-credentials default. Tokens are not refreshed automatically.
-
-Isolated transports preserve network configuration. Sync calls honor environment
-proxies and `REQUESTS_CA_BUNDLE` / `CURL_CA_BUNDLE`; async calls retain an injected
-aiohttp session's DNS/TLS connector, explicit proxy/auth and `trust_env` setting,
-or use environment proxies by default. Public, token, SSE and raw TUS calls use isolated
-sessions so injected cookies, default account auth and netrc credentials cannot
-be forwarded accidentally. Explicit bearer authentication also takes precedence
-over netrc and injected session authentication.
-
-Assembly get/cancel requests use the same credential isolation. When `service`
-points to a custom deployment, its returned Assembly worker hosts remain supported,
-including for high-level polling. The default Transloadit service restricts these
-requests to its API hosts; neither mode follows redirects or accepts URL credentials.
-Legacy HTTP `assembly_url` values on known Transloadit API hosts are upgraded to
-HTTPS automatically. Both clients use the pinned contract's regional-host pattern.
-
-SSE uses the returned Assembly `update_stream_url` and a context manager:
-
-```python
-# Inside an async function, after creating an Assembly:
-async with tl.stream_assembly_status(created.data["update_stream_url"]) as events:
-    async for event in events:
-        print(event.event, event.data)
-```
-
-The sync equivalent uses `with` and `for`. Each event has `event`, parsed `data`,
-`id`, `retry` and `terminal` attributes. Unknown events are delivered unchanged.
-The stream stops on a terminal event; exiting the context, including cancellation,
-closes the connection. A terminal event or disconnect does **not** establish
-processing success: fetch `assembly_ssl_url` and inspect `ok`/`error`.
-HTTP errors raise `transloadit.stream.StreamError` with `status_code`; streams
-do not reconnect or replay automatically. EOF ends iteration even without a
-terminal event, and transport failures retain requests/urllib3 or aiohttp exception
-types. Read inactivity defaults to 120 seconds,
-and events are capped at 1 MiB; use `read_timeout` and `max_event_size` to adjust.
-
-For low-level resumable control, `tus_options(assembly)` and
-`create_upload(assembly, headers=..., body=...)` take the Assembly response, pairing
-its `tus_url` with `assembly_ssl_url`. Successful creation exposes a validated
-`.upload_url`, suitable for persisting and passing to `get_upload_offset`,
-`patch_upload`, `download_upload` or `delete_upload`. Supply TUS fields such as
-`Upload-Length` and `Upload-Offset` through `headers`, and supply base64-encoded
-`filename` / `fieldname` entries in `Upload-Metadata` when creating uploads; the
-client adds protocol defaults and the Assembly metadata. Downloads return bytes, including JSON-looking
-files. These raw methods return HTTP errors as `Response` objects; inspect status
-codes. The high-level Assembly/tuspy helpers still handle normal uploads and polling.
+`AsyncTransloadit` mirrors the existing synchronous client: Assembly creation,
+retrieval, listing and cancellation; Template creation, retrieval, listing,
+updates and deletion; monthly billing; and Smart CDN URL signing. Use the
+Assembly helpers for multipart or resumable uploads and completion polling.
+Await the async client's network methods; local factories and URL signing stay
+synchronous.
 
 ## Examples
 

@@ -127,7 +127,7 @@ class _AsyncApiServer:
         return web.json_response(
             {
                 "ok": "TEMPLATE_FOUND",
-                "template_id": request.match_info["template_id"],
+                "id": request.match_info["template_id"],
             },
             headers={"X-Async-Route": "get_template"},
         )
@@ -137,7 +137,7 @@ class _AsyncApiServer:
         return web.json_response(
             {
                 "ok": "TEMPLATE_DELETED",
-                "template_id": request.match_info["template_id"],
+                "id": request.match_info["template_id"],
             },
             headers={"X-Async-Route": "delete_template"},
         )
@@ -145,7 +145,7 @@ class _AsyncApiServer:
     async def handle_list_templates(self, request):
         self._record(request)
         return web.json_response(
-            {"items": [{"template_id": "tpl-1"}], "count": 1},
+            {"items": [{"id": "tpl-1"}], "count": 1},
             headers={"X-Async-Route": "list_templates"},
         )
 
@@ -155,7 +155,7 @@ class _AsyncApiServer:
         return web.json_response(
             {
                 "ok": "TEMPLATE_UPDATED",
-                "template_id": request.match_info["template_id"],
+                "id": request.match_info["template_id"],
             },
             headers={"X-Async-Route": "update_template"},
         )
@@ -167,7 +167,9 @@ class _AsyncApiServer:
         return web.json_response(
             {
                 "ok": "TEMPLATE_CREATED",
-                "template_name": params["name"],
+                "id": "tpl-created",
+                "name": params["name"],
+                "content": params["template"],
             },
             headers={"X-Async-Route": "create_template"},
         )
@@ -287,18 +289,6 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         await self.server.close()
 
 
-    async def test_issue_bearer_token_rejects_127_prefixed_domain(self):
-        session = _RecordingSession({})
-        client = AsyncTransloadit(
-            "key",
-            "secret",
-            service="http://127.attacker.com",
-            session=session,
-        )
-
-        with self.assertRaisesRegex(ValueError, "insecure bearer token endpoint"):
-            await client.issue_bearer_token()
-        self.assertEqual(session.calls, [])
 
     async def test_async_client_methods_and_context_manager(self):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
@@ -320,21 +310,21 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
             response = await client.get_template("tpl-1")
             self.assertEqual(response.data["ok"], "TEMPLATE_FOUND")
-            self.assertEqual(response.data["template_id"], "tpl-1")
+            self.assertEqual(response.data["id"], "tpl-1")
 
             response = await client.list_templates()
-            self.assertEqual(response.data["items"], [{"template_id": "tpl-1"}])
+            self.assertEqual(response.data["items"], [{"id": "tpl-1"}])
             self.assertEqual(response.data["count"], 1)
 
             response = await client.update_template("tpl-1", {"name": "foo_bar"})
             self.assertEqual(response.data["ok"], "TEMPLATE_UPDATED")
-            self.assertEqual(response.data["template_id"], "tpl-1")
+            self.assertEqual(response.data["id"], "tpl-1")
 
             template = client.new_template("foo")
             template.add_step("resize", "/image/resize", {"width": 70, "height": 70})
             response = await template.create()
             self.assertEqual(response.data["ok"], "TEMPLATE_CREATED")
-            self.assertEqual(response.data["template_name"], "foo")
+            self.assertEqual(response.data["name"], "foo")
 
         self.assertIsNone(client.request.session)
 
@@ -409,10 +399,9 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         with mock.patch.object(transloadit_client.request, "public", new_callable=mock.AsyncMock) as request_mock:
             await transloadit_client.get_assembly(
                 assembly_url="https://api2-region.transloadit.com/assemblies/abc123",
-                params={"nonce": 123},
             )
         request_mock.assert_awaited_once_with(
-            "GET", "https://api2-region.transloadit.com/assemblies/abc123", params={"nonce": 123}
+            "GET", "https://api2-region.transloadit.com/assemblies/abc123", params=None
         )
         self.assertEqual(transloadit_session.calls, [])
 
@@ -472,109 +461,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
 
         self.assertEqual(session.calls, [])
 
-    async def test_async_generated_endpoint_methods_call_request_helpers(self):
-        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
-        response = Response(data={"ok": "OK"}, status_code=200, headers={})
-        assembly_data = {"steps": {":original": {"robot": "/upload/handle"}}}
-        extra_data = {"field": "value"}
-        files = {"file": io.BytesIO(b"payload")}
-        replay_data = {"wait": True}
-        credential_data = {"name": "demo", "type": "s3", "content": {}}
 
-        get_mock = mock.AsyncMock(return_value=response)
-        post_mock = mock.AsyncMock(return_value=response)
-        put_mock = mock.AsyncMock(return_value=response)
-        delete_mock = mock.AsyncMock(return_value=response)
-
-        with mock.patch.object(client.request, "get", new=get_mock):
-            with mock.patch.object(client.request, "post", new=post_mock):
-                with mock.patch.object(client.request, "put", new=put_mock):
-                    with mock.patch.object(client.request, "delete", new=delete_mock):
-                        await client.create_assembly(assembly_data, extra_data, files)
-                        await client.create_assembly_with_id(
-                            "assembly/with?chars", assembly_data, extra_data, files
-                        )
-                        await client.replay_assembly("assembly/with?chars", replay_data)
-                        await client.replay_assembly_notification(
-                            "assembly/with?chars", replay_data
-                        )
-                        await client.create_template({"name": "template"})
-                        await client.validate_template_credential_oauth_on_create(
-                            {"type": "dropbox"}
-                        )
-                        await client.create_template_credentials(credential_data)
-                        await client.get_builtin_template("builtin/with?chars")
-                        await client.get_template_full("template/with?chars")
-                        await client.get_builtin_template_full("builtin/full?chars")
-                        await client.list_priority_job_slots()
-                        await client.list_template_credentials()
-                        await client.list_template_credential_types()
-                        await client.get_template_credentials("cred/with?chars")
-                        await client.update_template_credentials("cred/with?chars", credential_data)
-                        await client.delete_template_credentials("cred/with?chars")
-
-        self.assertEqual(
-            post_mock.await_args_list,
-            [
-                mock.call(
-                    "/assemblies",
-                    data=assembly_data,
-                    extra_data=extra_data,
-                    files=files,
-                ),
-                mock.call(
-                    "/assemblies/assembly%2Fwith%3Fchars",
-                    data=assembly_data,
-                    extra_data=extra_data,
-                    files=files,
-                ),
-                mock.call("/assemblies/assembly%2Fwith%3Fchars/replay", data=replay_data),
-                mock.call(
-                    "/assembly_notifications/assembly%2Fwith%3Fchars/replay",
-                    data=replay_data,
-                ),
-                mock.call("/templates", data={"name": "template"}),
-                mock.call("/template_credentials/validateOauthOnCreate", data={"type": "dropbox"}),
-                mock.call("/template_credentials", data=credential_data),
-            ],
-        )
-        self.assertEqual(
-            get_mock.await_args_list,
-            [
-                mock.call("/templates/builtin/builtin%2Fwith%3Fchars", params=None),
-                mock.call("/templates/template%2Fwith%3Fchars/full", params=None),
-                mock.call("/templates/builtin/builtin%2Ffull%3Fchars/full", params=None),
-                mock.call("/queues/job_slots", params=None),
-                mock.call("/template_credentials", params=None),
-                mock.call("/template_credentials/types", params=None),
-                mock.call("/template_credentials/cred%2Fwith%3Fchars", params=None),
-            ],
-        )
-        put_mock.assert_awaited_once_with(
-            "/template_credentials/cred%2Fwith%3Fchars", data=credential_data
-        )
-        delete_mock.assert_awaited_once_with(
-            "/template_credentials/cred%2Fwith%3Fchars", data=None
-        )
-
-    async def test_async_generated_endpoint_methods_reject_empty_path_ids(self):
-        client = AsyncTransloadit("key", "secret", service=self.server.base_url)
-        methods = [
-            client.create_assembly_with_id,
-            client.replay_assembly,
-            client.replay_assembly_notification,
-            client.list_assembly_notifications,
-            client.get_builtin_template,
-            client.get_template_full,
-            client.get_builtin_template_full,
-            client.get_template_credentials,
-            client.delete_template_credentials,
-            client.update_template_credentials,
-        ]
-
-        for method in methods:
-            with self.assertRaises(ValueError):
-                await method("")
 
     async def test_async_client_close_reopens_owned_session(self):
         client = AsyncTransloadit("key", "secret", service=self.server.base_url)
@@ -622,7 +509,7 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
             response = await client.delete_template("tpl-1")
             self.assertEqual(response.data["ok"], "TEMPLATE_DELETED")
-            self.assertEqual(response.data["template_id"], "tpl-1")
+            self.assertEqual(response.data["id"], "tpl-1")
             self.assertEqual(response.headers["X-Async-Route"], "delete_template")
 
             response = await client.get_bill(9, 2017)
@@ -767,74 +654,8 @@ class AsyncClientTest(IsolatedAsyncioTestCase):
         )
         sleep_mock.assert_awaited_once_with(0)
 
-    async def test_async_wait_for_assembly_polls_until_terminal(self):
-        responses = [
-            Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200),
-            Response(data={"ok": "ASSEMBLY_EXECUTING"}, status_code=200),
-            Response(data={"ok": "ASSEMBLY_COMPLETED"}, status_code=200),
-        ]
-        assembly_url = f"{self.server.base_url}/assemblies/assembly-123"
 
-        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
-            with mock.patch.object(
-                client,
-                "get_assembly",
-                new=mock.AsyncMock(side_effect=responses),
-            ) as get_mock:
-                with mock.patch(
-                    "transloadit.async_client.asyncio.sleep",
-                    new_callable=mock.AsyncMock,
-                ) as sleep_mock:
-                    response = await client.wait_for_assembly(assembly_url)
 
-        self.assertEqual(response.data["ok"], "ASSEMBLY_COMPLETED")
-        self.assertEqual(
-            get_mock.await_args_list,
-            [
-                mock.call(assembly_url=assembly_url),
-                mock.call(assembly_url=assembly_url),
-                mock.call(assembly_url=assembly_url),
-            ],
-        )
-        self.assertEqual(sleep_mock.await_args_list, [mock.call(1), mock.call(1)])
-
-    async def test_async_wait_for_assembly_rejects_non_json_poll_response(self):
-        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
-            with mock.patch.object(
-                client,
-                "get_assembly",
-                new=mock.AsyncMock(return_value=Response(data="plain response", status_code=502)),
-            ):
-                with self.assertRaises(RuntimeError):
-                    await client.wait_for_assembly(
-                        f"{self.server.base_url}/assemblies/assembly-123"
-                    )
-
-    async def test_async_create_tus_assembly_uses_contract_payload(self):
-        expected_response = Response(data={"ok": "ASSEMBLY_UPLOADING"}, status_code=200)
-
-        async with AsyncTransloadit("key", "secret", service=self.server.base_url) as client:
-            with mock.patch.object(
-                client,
-                "create_assembly",
-                new=mock.AsyncMock(return_value=expected_response),
-            ) as create_mock:
-                response = await client.create_tus_assembly(2)
-
-        self.assertIs(response, expected_response)
-        create_mock.assert_awaited_once_with(
-            data={
-                "await": False,
-                "steps": {
-                    ":original": {
-                        "output_meta": True,
-                        "result": "debug",
-                        "robot": "/upload/handle",
-                    },
-                },
-            },
-            extra_data={"num_expected_upload_files": 2},
-        )
 
     def test_async_signed_smart_cdn_url_matches_sync_and_rejects_bad_types(self):
         async_client = AsyncTransloadit("test-key", "test-secret")

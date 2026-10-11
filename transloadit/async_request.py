@@ -16,9 +16,8 @@ from requests.structures import CaseInsensitiveDict
 
 from . import __version__
 from .api_url import should_sign_api_url
-from .endpoint_transport import async_network_options, capability_url, token_request, tus_request, validate_upload_location
+from .network import async_network_options
 from .response import Response
-from .stream import EventParser, StreamError
 from .upload import get_upload_filename, run_upload_worker
 
 TIMEOUT = 60
@@ -118,27 +117,15 @@ class AsyncRequest:
     def session(self):
         return self._session
 
-    def _headers(self, url=None):
-        headers = dict(self.HEADERS)
-        if url and getattr(self.transloadit, "bearer_token", None) and should_sign_api_url(url, self.transloadit.service):
-            headers["Authorization"] = "Bearer " + self.transloadit.bearer_token
-        return headers
+    def _headers(self):
+        return dict(self.HEADERS)
 
     @asynccontextmanager
     async def _api_session(self, url):
-        if "Authorization" in self._headers(url):
-            # Explicit bearer auth wins over netrc and injected account defaults.
-            async with self._isolated_session() as session:
-                yield session
-        else:
-            yield await self._ensure_session()
+        yield await self._ensure_session()
 
     async def _request_options(self, url):
-        headers = self._headers(url)
-        options = {"headers": headers, "timeout": self._timeout(), "allow_redirects": False}
-        if "Authorization" in headers:
-            options.update(await async_network_options(url, self._session))
-        return options
+        return {"headers": self._headers(), "timeout": self._timeout(), "allow_redirects": False}
 
     def _get_session_lock(self):
         if self._session_lock is None:
@@ -273,9 +260,6 @@ class AsyncRequest:
         """
         return await self._form_request("put", path, data, extra_data, files)
 
-    async def patch(self, path, data=None):
-        return await self._form_request("patch", path, data)
-
     async def delete(self, path, data=None):
         """
         Makes an asynchronous HTTP DELETE request.
@@ -295,8 +279,6 @@ class AsyncRequest:
 
     def _to_payload(self, data):
         data = copy.deepcopy(data or {})
-        if getattr(self.transloadit, "bearer_token", None):
-            return {"params": json.dumps(data)}
         expiry = datetime.now(timezone.utc) + timedelta(seconds=self.transloadit.duration)
         if "auth" in data and not isinstance(data["auth"], dict):
             raise ValueError("auth must be a dictionary when provided.")
@@ -337,7 +319,7 @@ class AsyncRequest:
 
     async def public(self, method, path, params=None, data=None):
         # A separate session prevents injected session cookies/auth from leaking
-        # onto credential-free capability and public endpoints.
+        # onto credential-free Assembly capability requests.
         url = self._get_full_url(path)
         async with self._isolated_session() as session:
             async with session.request(method, url, params=params, data=data,
@@ -345,48 +327,3 @@ class AsyncRequest:
                                        **(await async_network_options(url, self._session))) as response:
                 return Response(data=await self._read_response_data(response), status_code=response.status,
                                 headers=CaseInsensitiveDict(response.headers))
-
-    async def issue_bearer_token(self, data=None):
-        url, data, headers = token_request(self.transloadit, data)
-        headers.update(self._headers())
-        async with self._isolated_session() as session:
-            async with session.post(url, data=self._normalize_payload(data), headers=headers,
-                                    timeout=self._timeout(), allow_redirects=False, **(await async_network_options(url, self._session))) as response:
-                return Response(data=await self._read_response_data(response), status_code=response.status,
-                                headers=CaseInsensitiveDict(response.headers))
-
-    async def tus(self, operation_id, location, headers=None, body=None):
-        spec, url, headers, body = tus_request(self.transloadit, operation_id, location, headers, body)
-        headers.update(self._headers())
-        async with self._isolated_session() as session:
-            async with session.request(spec["method"], url, data=body, headers=headers,
-                                       timeout=self._timeout(), allow_redirects=False, **(await async_network_options(url, self._session))) as raw:
-                data = await raw.read() if spec["binary_response"] else await self._read_response_data(raw)
-                response = Response(data=data, status_code=raw.status, headers=CaseInsensitiveDict(raw.headers))
-        if spec["method"] == "POST":
-            validate_upload_location(self.transloadit, url, response)
-        return response
-
-    @asynccontextmanager
-    async def stream_status(self, url, *, read_timeout=120, max_event_size=1048576):
-        url = capability_url(self.transloadit, url, "status-stream")
-        parser = EventParser(max_event_size)
-        timeout = aiohttp.ClientTimeout(total=None, sock_connect=TIMEOUT, sock_read=read_timeout)
-        async with self._isolated_session() as session:
-            async with session.get(url, headers={**self._headers(), "Accept": "text/event-stream"},
-                                   timeout=timeout, allow_redirects=False, **(await async_network_options(url, self._session))) as response:
-                if response.status != 200:
-                    raise StreamError(response.status)
-                if response.headers.get("Content-Type", "").split(";", 1)[0].lower() != "text/event-stream":
-                    raise StreamError(response.status, "Expected text/event-stream")
-
-                async def events():
-                    # EOF is not Assembly success; callers inspect the final status.
-                    # Keep aiohttp exception types for existing retry policies.
-                    async for chunk in response.content.iter_any():
-                        for event in parser.feed(chunk):
-                            yield event
-                            if event.terminal:
-                                return
-
-                yield events()

@@ -2,24 +2,16 @@ import copy
 import hashlib
 import hmac
 import json
-from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 import requests
 
 from . import __version__
 from .api_url import should_sign_api_url
-from .endpoint_transport import capability_url, sync_network_options, token_request, tus_request, validate_upload_location
+from .network import sync_network_options
 from .response import Response, as_response
-from .stream import EventParser, StreamError
 
 TIMEOUT = 60
-
-
-class _ExplicitAuthorization(requests.auth.AuthBase):
-    """Keep an explicit Authorization header from being replaced by netrc."""
-    def __call__(self, request):
-        return request
 
 
 class Request:
@@ -39,15 +31,6 @@ class Request:
     def __init__(self, transloadit):
         self.transloadit = transloadit
 
-    def _headers(self, url):
-        headers = dict(self.HEADERS)
-        if getattr(self.transloadit, "bearer_token", None) and should_sign_api_url(url, self.transloadit.service):
-            headers["Authorization"] = "Bearer " + self.transloadit.bearer_token
-        return headers
-
-    def _auth(self, url):
-        return _ExplicitAuthorization() if "Authorization" in self._headers(url) else None
-
     @as_response
     def get(self, path, params=None):
         """
@@ -63,8 +46,7 @@ class Request:
         return requests.get(
             url,
             params=self._to_request_payload(url, params),
-            headers=self._headers(url),
-            auth=self._auth(url),
+            headers=self.HEADERS,
             timeout=TIMEOUT,
             allow_redirects=False,
         )
@@ -94,8 +76,7 @@ class Request:
             url,
             data=data,
             files=files,
-            headers=self._headers(url),
-            auth=self._auth(url),
+            headers=self.HEADERS,
             timeout=TIMEOUT,
             allow_redirects=False,
         )
@@ -119,17 +100,10 @@ class Request:
             url,
             data=data,
             files=files,
-            headers=self._headers(url),
-            auth=self._auth(url),
+            headers=self.HEADERS,
             timeout=TIMEOUT,
             allow_redirects=False,
         )
-
-    @as_response
-    def patch(self, path, data=None):
-        url = self._get_full_url(path)
-        return requests.patch(url, data=self._to_request_payload(url, data),
-                              headers=self._headers(url), auth=self._auth(url), timeout=TIMEOUT, allow_redirects=False)
 
     @as_response
     def delete(self, path, data=None):
@@ -147,16 +121,13 @@ class Request:
         return requests.delete(
             url,
             data=data,
-            headers=self._headers(url),
-            auth=self._auth(url),
+            headers=self.HEADERS,
             timeout=TIMEOUT,
             allow_redirects=False,
         )
 
     def _to_payload(self, data):
         data = copy.deepcopy(data or {})
-        if getattr(self.transloadit, "bearer_token", None):
-            return {"params": json.dumps(data)}
         expiry = datetime.now(timezone.utc) + timedelta(seconds=self.transloadit.duration)
         if "auth" in data and not isinstance(data["auth"], dict):
             raise ValueError("auth must be a dictionary when provided.")
@@ -188,53 +159,8 @@ class Request:
 
     def public(self, method, path, params=None, data=None):
         with requests.Session() as session:
-            session.trust_env = False  # Do not borrow netrc credentials for unsigned endpoints.
+            session.trust_env = False  # Do not borrow netrc credentials for Assembly capability URLs.
             url = self._get_full_url(path)
             raw = session.request(method, url, params=params, data=data,
                                   headers=self.HEADERS, timeout=TIMEOUT, allow_redirects=False, **sync_network_options(url))
             return Response(raw)
-
-    def issue_bearer_token(self, data=None):
-        url, data, headers = token_request(self.transloadit, data)
-        headers.update(self.HEADERS)
-        with requests.Session() as session:
-            session.trust_env = False
-            return Response(session.post(url, data=data, headers=headers, timeout=TIMEOUT, allow_redirects=False, **sync_network_options(url)))
-
-    def tus(self, operation_id, location, headers=None, body=None):
-        spec, url, headers, body = tus_request(self.transloadit, operation_id, location, headers, body)
-        headers.update(self.HEADERS)
-        with requests.Session() as session:
-            session.trust_env = False
-            raw = session.request(spec["method"], url, data=body, headers=headers,
-                                  timeout=TIMEOUT, allow_redirects=False, **sync_network_options(url))
-            response = Response(raw, data=raw.content) if spec["binary_response"] else Response(raw)
-        if spec["method"] == "POST":
-            validate_upload_location(self.transloadit, url, response)
-        return response
-
-    @contextmanager
-    def stream_status(self, url, *, read_timeout=120, max_event_size=1048576):
-        url = capability_url(self.transloadit, url, "status-stream")
-        parser = EventParser(max_event_size)
-        with requests.Session() as session:
-            session.trust_env = False
-            with session.get(url, headers={**self.HEADERS, "Accept": "text/event-stream"},
-                             timeout=(TIMEOUT, read_timeout), stream=True, allow_redirects=False,
-                             **sync_network_options(url)) as response:
-                if response.status_code != 200:
-                    raise StreamError(response.status_code)
-                if response.headers.get("Content-Type", "").split(";", 1)[0].lower() != "text/event-stream":
-                    raise StreamError(response.status_code, "Expected text/event-stream")
-
-                def events():
-                    # EOF is not Assembly success; callers inspect the final status.
-                    # Keep transport exception types for existing retry policies.
-                    # read1 returns available bytes without waiting to fill a chunk.
-                    while chunk := response.raw.read1(65536, decode_content=True):
-                        for event in parser.feed(chunk):
-                            yield event
-                            if event.terminal:
-                                return
-
-                yield events()

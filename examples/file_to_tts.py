@@ -40,7 +40,7 @@ def first_result_url(response_data, step_name):
     results = (response_data.get("results") or {}).get(step_name) or []
     if not results:
         raise RuntimeError(f"No results found for step {step_name!r}: {response_data}")
-    url = results[0].get("ssl_url") or results[0].get("url")
+    url = results[0].get("ssl_url")
     if not url:
         raise RuntimeError(f"No result URL found for step {step_name!r}: {response_data}")
     return url

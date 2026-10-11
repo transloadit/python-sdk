@@ -1,12 +1,10 @@
 import re
 from urllib.parse import urlparse
 
-from ._contract import CONTRACT
-
 
 def is_transloadit_api_host(hostname):
     hostname = (hostname or "").lower()
-    return hostname == "api2.transloadit.com" or re.fullmatch(CONTRACT["capability"]["publicHostPattern"], hostname) is not None
+    return hostname == "api2.transloadit.com" or re.fullmatch(r"api2-(?!xn--)[a-z0-9](?:[a-z0-9-]{0,56}[a-z0-9])?\.transloadit\.com", hostname) is not None
 
 
 def normalize_service_url(service):

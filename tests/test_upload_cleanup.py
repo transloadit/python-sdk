@@ -35,7 +35,9 @@ def test_multipart_cancellation_drains_worker_before_releasing_file():
                 return Context(kwargs["data"])
         upload = SlowStream(b"payload")
         client = AsyncTransloadit("key", "secret", session=Session())
-        task = asyncio.create_task(client.create_assembly(files={"file": upload}))
+        assembly = client.new_assembly()
+        assembly.add_file(upload)
+        task = asyncio.create_task(assembly.create(resumable=False))
         try:
             assert await asyncio.to_thread(started.wait, 5)
             task.cancel()
@@ -116,7 +118,9 @@ def test_global_event_loop_shutdown_keeps_files_open_until_workers_finish(mode):
                 if mode == "tus":
                     await assembly._do_tus_upload_async("assembly", "upload", 3)
                 else:
-                    await client.create_assembly(files={"file": stream})
+                    multipart = client.new_assembly()
+                    multipart.add_file(stream)
+                    await multipart.create(resumable=False)
         task = asyncio.create_task(upload())
         assert await asyncio.to_thread(started.wait, 5)
         task.cancel()

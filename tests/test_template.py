@@ -22,14 +22,14 @@ class TemplateTest(unittest.TestCase):
         )
         mock.post(
             url,
-            text='{"ok":"TEMPLATE_CREATED","template_name":"foo"}',
+            text='{"ok":"TEMPLATE_CREATED","id":"template-1","name":"foo","content":{"steps":{}}}',
             additional_matcher=request_body_matcher(urllib.parse.quote_plus(sub_body)),
         )
 
         self.template.add_step("resize", "/image/resize", {"width": 70, "height": 70})
         template = self.template.create()
         self.assertEqual(template.data["ok"], "TEMPLATE_CREATED")
-        self.assertEqual(template.data["template_name"], "foo")
+        self.assertEqual(template.data["name"], "foo")
 
     def test_create_preserves_string_template_payload(self):
         template = self.transloadit.new_template(

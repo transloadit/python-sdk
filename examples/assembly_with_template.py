@@ -25,7 +25,7 @@ def get_example_image_path():
 
 
 def extract_template_id(response_data):
-    template_id = response_data.get("id") or response_data.get("template_id")
+    template_id = response_data.get("id")
     if not template_id:
         raise RuntimeError(f"Template response did not contain an id: {response_data}")
     return template_id
@@ -35,7 +35,7 @@ def first_result_url(response_data, step_name):
     results = (response_data.get("results") or {}).get(step_name) or []
     if not results:
         raise RuntimeError(f"No results found for step {step_name!r}: {response_data}")
-    url = results[0].get("ssl_url") or results[0].get("url")
+    url = results[0].get("ssl_url")
     if not url:
         raise RuntimeError(f"No result URL found for step {step_name!r}: {response_data}")
     return url
@@ -68,7 +68,7 @@ def main():
             assembly.add_file(upload, "image")
             response = assembly.create(wait=True, resumable=False)
 
-        print("Assembly:", response.data.get("assembly_ssl_url") or response.data.get("assembly_url"))
+        print("Assembly:", response.data["assembly_ssl_url"])
         print("Template result:", first_result_url(response.data, "resize"))
     finally:
         client.delete_template(template_id)

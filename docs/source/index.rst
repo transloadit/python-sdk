@@ -113,57 +113,15 @@ releasing caller-owned files. Multipart cancellation drains active file reads.
 Timeout and shutdown cleanup can therefore exceed the requested deadline; keep
 file context managers open around the awaited call.
 
-Endpoint coverage
------------------
+Client features
+---------------
 
-Both clients implement all 44 documented operations: 38 API2 endpoints plus six
-raw TUS operations. See the `coverage table`_ for methods, HTTP routes, alpha
-stages and the pinned contract generation/check procedure. The 16 separate-product
-storage/device/OAuth routes are tracked for 2.1 in `issue 60`_.
-
-GET methods accept normalized API fields in ``params``; other ordinary methods
-accept ``data``. Creation and replacement of Assemblies also accept ``extra_data``
-and ``files``. Requests are signed by default; pass ``bearer_token`` to use an
-existing token. ``issue_bearer_token`` also supports authorization-code and refresh
-flows. Automatic refresh is not performed.
-
-Isolated transports preserve network configuration. Sync calls honor environment
-proxies and ``REQUESTS_CA_BUNDLE`` / ``CURL_CA_BUNDLE``; async calls retain an injected
-session's DNS/TLS connector, explicit proxy/auth and ``trust_env`` setting, or use
-environment proxies by default. Public, token, SSE and raw TUS calls isolate cookies,
-default account auth and netrc credentials. Explicit bearer authentication takes
-precedence over netrc and injected session authentication.
-
-Assembly get/cancel also isolate account credentials. Custom ``service`` deployments
-retain their returned Assembly worker hosts for high-level polling. The default
-Transloadit service restricts these requests to its API hosts; neither mode follows
-redirects or accepts credentials embedded in URLs.
-Legacy HTTP ``assembly_url`` values on known Transloadit hosts are upgraded to HTTPS.
-Both clients use the pinned contract's regional-host pattern.
-
-``stream_assembly_status`` takes the returned ``update_stream_url`` and is used
-with ``with`` / ``async with``. Iterate its events with ``for`` / ``async for``;
-the context closes the connection on exit or cancellation. Unknown events remain
-available to callers. Terminal events and disconnects do not imply success:
-fetch the final Assembly Status and inspect ``ok`` / ``error``. HTTP failures
-raise ``transloadit.stream.StreamError``. Read inactivity defaults to 120 seconds
-and event size to 1 MiB, adjustable through ``read_timeout`` / ``max_event_size``.
-There is no automatic reconnect or replay.
-EOF ends iteration even without a terminal event. Network failures retain the
-underlying requests/urllib3 or aiohttp exception types.
-
-For raw TUS, pass the Assembly response to ``tus_options`` / ``create_upload``.
-Creation pairs ``tus_url`` and ``assembly_ssl_url`` and returns a validated
-``upload_url`` alongside the response. Persist that URL for offset queries,
-append, download and deletion. Pass protocol headers with ``headers`` and upload
-bytes with ``body``. Include base64-encoded ``filename`` / ``fieldname`` entries in
-``Upload-Metadata`` when creating uploads. The client adds the Assembly metadata.
-Downloads always return bytes. Raw methods return HTTP errors
-as Response objects; inspect their status. Existing high-level upload helpers
-still manage normal uploads and polling.
-
-.. _coverage table: https://github.com/transloadit/python-sdk/blob/asyncio-v2/docs/api-coverage.md
-.. _issue 60: https://github.com/transloadit/python-sdk/issues/60
+``AsyncTransloadit`` mirrors the existing synchronous client: Assembly creation,
+retrieval, listing and cancellation; Template creation, retrieval, listing,
+updates and deletion; monthly billing; and Smart CDN URL signing. Use the
+Assembly helpers for multipart or resumable uploads and completion polling.
+Await the async client's network methods; local factories and URL signing stay
+synchronous.
 
 Examples
 --------

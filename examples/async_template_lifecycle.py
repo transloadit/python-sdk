@@ -21,7 +21,7 @@ def get_credentials():
 
 
 def extract_template_id(response_data):
-    template_id = response_data.get("id") or response_data.get("template_id")
+    template_id = response_data.get("id")
     if not template_id:
         raise RuntimeError(f"Template response did not contain an id: {response_data}")
     return template_id
@@ -52,7 +52,7 @@ async def main():
             print("Created template:", template_id)
 
             fetched = await client.get_template(template_id)
-            print("Fetched template:", fetched.data.get("name") or fetched.data.get("template_name"))
+            print("Fetched template:", fetched.data["name"])
 
             updated = await client.update_template(
                 template_id,
