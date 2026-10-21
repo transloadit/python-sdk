@@ -134,7 +134,7 @@ scripts/test-in-docker.sh
 This script will:
 
 - build images for the Python versions we test in CI (3.12, 3.13, and 3.14)
-- install Poetry, Node.js 24, and the Transloadit CLI
+- install Poetry, Node.js 26, and the Transloadit CLI
 - pass credentials from `.env` (if present) so end-to-end tests can run against real Transloadit accounts
 
 Signature parity tests use `npx transloadit smart_sig` under the hood, matching the reference implementation used by our other SDKs. Our GitHub Actions workflow also runs the E2E upload and quickstart examples against Python 3.14 on every push/PR using a dedicated Transloadit test account (wired through the `TRANSLOADIT_KEY` and `TRANSLOADIT_SECRET` secrets).
