@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.14
+FROM node:24.22.1-bookworm-slim AS node
 FROM python:${PYTHON_VERSION}-slim AS base
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -8,6 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=true
 
+# Keep the existing development utilities available to users of this image.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        curl \
@@ -20,12 +22,12 @@ RUN apt-get update \
 
 RUN git lfs install --system
 
-# Install Node.js 24 (for Smart CDN parity tests) and supporting CLI tooling
-RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends nodejs \
-    && npm install -g transloadit \
-    && rm -rf /var/lib/apt/lists/*
+# Use the patched official runtime for signature parity tooling.
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+RUN npm install -g transloadit
 
 # Install Poetry so we match the GitHub Actions toolchain
 RUN pip install --no-cache-dir --upgrade pip \
