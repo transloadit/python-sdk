@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.14
-FROM node:24.22.1-bookworm-slim AS node
+FROM node:26.12.1-bookworm-slim AS node
 FROM python:${PYTHON_VERSION}-slim AS base
 
 ENV DEBIAN_FRONTEND=noninteractive \
