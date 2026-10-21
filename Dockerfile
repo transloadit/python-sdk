@@ -9,6 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=true
 
+# Keep the existing development utilities available to users of this image.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        curl \
